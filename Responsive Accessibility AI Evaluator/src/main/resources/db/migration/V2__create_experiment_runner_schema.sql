@@ -1,0 +1,80 @@
+create table experiment_plan (
+    plan_id uuid primary key,
+    configuration_id uuid not null,
+    mode varchar(40) not null,
+    random_seed bigint not null,
+    ai_concurrency integer not null,
+    hard_budget_usd numeric(20,10) not null,
+    max_cost_per_ai_call_usd numeric(20,10) not null,
+    planned_cases integer not null,
+    planned_axe_runs integer not null,
+    planned_ai_text_runs integer not null,
+    planned_ai_multimodal_runs integer not null,
+    planned_hybrid_results integer not null,
+    estimated_max_cost_usd numeric(20,10) not null,
+    manifest_json text not null,
+    manifest_hash varchar(64) not null,
+    status varchar(40) not null,
+    created_at timestamp with time zone not null,
+    updated_at timestamp with time zone not null,
+    version bigint not null default 0,
+    constraint fk_plan_configuration foreign key (configuration_id) references experiment_configuration(configuration_id),
+    constraint uq_plan_configuration_mode unique (configuration_id, mode),
+    constraint ck_plan_concurrency check (ai_concurrency >= 1),
+    constraint ck_plan_budget check (hard_budget_usd >= 0 and max_cost_per_ai_call_usd >= 0)
+);
+
+create table experiment_execution (
+    execution_id uuid primary key,
+    plan_id uuid not null,
+    execution_order integer not null,
+    execution_key varchar(500) not null,
+    case_id varchar(120) not null,
+    execution_type varchar(40) not null,
+    model_id varchar(120) null,
+    repetition integer null,
+    status varchar(40) not null,
+    reserved_cost_usd numeric(20,10) not null default 0,
+    actual_cost_usd numeric(20,10) not null default 0,
+    run_id uuid null,
+    error_code varchar(120) null,
+    started_at timestamp with time zone null,
+    completed_at timestamp with time zone null,
+    version bigint not null default 0,
+    constraint fk_execution_plan foreign key (plan_id) references experiment_plan(plan_id),
+    constraint fk_execution_run foreign key (run_id) references analysis_run(run_id),
+    constraint uq_execution_key unique (plan_id, execution_key),
+    constraint uq_execution_order unique (plan_id, execution_order),
+    constraint ck_execution_cost check (reserved_cost_usd >= 0 and actual_cost_usd >= 0)
+);
+
+create table evaluation_decision (
+    decision_id uuid primary key,
+    run_id uuid not null,
+    finding_id uuid null,
+    ground_truth_id varchar(120) null,
+    detection_class varchar(40) not null,
+    localization_score integer null,
+    wcag_score integer null,
+    e1 integer null,
+    e2 integer null,
+    e3 integer null,
+    e4 integer null,
+    e5 integer null,
+    quality_score numeric(8,5) null,
+    reviewer varchar(255) not null,
+    decision_kind varchar(40) not null,
+    blind boolean not null,
+    source_decision_ids_json text not null,
+    notes text null,
+    created_at timestamp with time zone not null,
+    version bigint not null default 0,
+    constraint fk_decision_run foreign key (run_id) references analysis_run(run_id),
+    constraint fk_decision_finding foreign key (finding_id) references predicted_finding(finding_id),
+    constraint fk_decision_ground_truth foreign key (ground_truth_id) references ground_truth_issue(ground_truth_id),
+    constraint uq_decision_reviewer unique (run_id, finding_id, ground_truth_id, detection_class, reviewer, decision_kind)
+);
+
+create index idx_plan_status on experiment_plan(status, created_at);
+create index idx_execution_next on experiment_execution(plan_id, status, execution_order);
+create index idx_decision_run on evaluation_decision(run_id, decision_kind);

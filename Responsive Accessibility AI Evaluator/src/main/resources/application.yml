@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: responsive-accessibility-ai
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/accessibility}
+    username: ${DB_USERNAME:accessibility}
+    password: ${DB_PASSWORD:accessibility}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  thymeleaf:
+    cache: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+app:
+  analysis:
+    page-load-timeout: 30s
+    max-repeat-count: 3
+  storage:
+    directory: ${APP_STORAGE_DIRECTORY:./var/data}
+  browser:
+    headless: true
+    extractor-version: f2-v1
+    limits:
+      navigation-timeout: 30s
+      total-capture-timeout: 45s
+      interaction-step-timeout: 5s
+      max-redirects: 5
+      max-resources: 250
+      max-main-document-bytes: 10485760
+      max-interaction-steps: 20
+    stabilization:
+      font-timeout: 2s
+      final-delay: 500ms
+  axe:
+    profile-version: WCAG_22_AA_V1
+    adapter-version: 4.13.0
+    timeout: 30s
+    tags:
+      - wcag2a
+      - wcag2aa
+      - wcag21a
+      - wcag21aa
+      - wcag22aa
+  ai:
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    api-key: ${OPENAI_API_KEY:}
+    timeout: 90s
+    max-output-tokens: 8000
+    context-max-characters: 150000
+    exploratory-axe-context-enabled: false
+    prompt-version: PROMPT_ACCESSIBILITY_V1
+    schema-version: AI_FINDINGS_SCHEMA_V1
+    context-version: PAGE_CONTEXT_V1
+    models:
+      GPT5_NANO:
+        provider-model: gpt-5-nano
+        display-name: GPT-5 nano
+        enabled: true
+        modalities: [TEXT, IMAGE]
+        accepted-parameters: [MAX_OUTPUT_TOKENS, JSON_SCHEMA]
+        input-price-per-million: 0.05
+        cached-input-price-per-million: 0.005
+        output-price-per-million: 0.40
+        effective-from: 2026-09-01
+      GPT41_NANO:
+        provider-model: gpt-4.1-nano
+        display-name: GPT-4.1 nano
+        enabled: true
+        modalities: [TEXT, IMAGE]
+        accepted-parameters: [MAX_OUTPUT_TOKENS, JSON_SCHEMA, TEMPERATURE, TOP_P]
+        input-price-per-million: 0.10
+        cached-input-price-per-million: 0.025
+        output-price-per-million: 0.40
+        effective-from: 2026-09-01
+  retention:
+    policy: KEEP_ALL

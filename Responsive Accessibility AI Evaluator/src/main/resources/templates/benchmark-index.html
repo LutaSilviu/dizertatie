@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="ro" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchmark WCAG controlat</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<body><main class="page-shell"><header><p class="eyebrow">F7 · Benchmark local versionat</p>
+<h1>Benchmark WCAG controlat</h1><p>24 fixture-uri BAD/GOOD și 48 de cazuri pagină–viewport, fără resurse externe.</p></header>
+<section class="card"><h2>Fixture-uri</h2><div class="table-wrap"><table><caption>Rute locale stabile și hashuri înghețate.</caption>
+<thead><tr><th>Fixture</th><th>Criteriu</th><th>Versiune</th><th>SHA-256</th></tr></thead><tbody>
+<tr th:each="fixture : ${fixtures}"><td><a th:href="@{'/benchmark/' + ${fixture.scenario.scenarioId} + '/' + ${fixture.variant}}" th:text="${fixture.fixtureId}"></a></td>
+<td th:text="${fixture.scenario.wcagCriterion}"></td><td th:text="${fixture.fixtureVersion}"></td><td class="hash" th:text="${fixture.fixtureHash}"></td></tr>
+</tbody></table></div><p><a href="/experiment">Deschide runnerul experimentului</a></p></section></main></body></html>

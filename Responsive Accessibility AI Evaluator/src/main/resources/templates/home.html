@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ro" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title th:text="${title}">Responsive Accessibility AI Evaluator</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<body><main class="page-shell"><header><p class="eyebrow">F1–F7 · Evaluare și experiment reproductibil</p><h1 th:text="${title}">Responsive Accessibility AI Evaluator</h1>
+<p>Captură tehnică reproductibilă și analiză automată axe-core a aceleiași stări de pagină.</p></header>
+<nav class="card" aria-label="Funcții de cercetare"><a href="/benchmark">Benchmark controlat</a> · <a href="/experiment">Runner experiment</a> · <a href="/history">Istoric și export</a></nav>
+<section class="card" aria-labelledby="capture-heading"><h2 id="capture-heading">Capturează starea paginii</h2>
+<form method="post" action="/capture-snapshot">
+<label for="url">URL public</label><input id="url" name="url" type="url" required autocomplete="url" th:value="${url}" placeholder="https://exemplu.ro/pagina">
+<label for="viewport">Viewport</label><select id="viewport" name="viewport" required>
+<option th:each="item : ${viewports}" th:value="${item}" th:text="${item + ' · ' + item.width + '×' + item.height}" th:selected="${item == selectedViewport}">DESKTOP</option></select>
+<label for="scenario">Scenariu intern de interacțiune</label><select id="scenario" name="interactionScenarioId">
+<option value="none">Fără interacțiuni</option><option th:each="item : ${interactionScenarios}" th:value="${item.id}" th:text="${item.displayName}" th:selected="${item.id == selectedScenario}"></option></select>
+<button type="submit">Capturează snapshotul</button>
+<button type="submit" formaction="/analyze-axe">Capturează și rulează axe-core</button></form>
+<p class="form-note">Sunt acceptate numai scenariile interne afișate; formularul nu primește selectori sau scripturi.</p>
+<p class="message success" th:if="${success}" th:text="${success}" role="status"></p><p class="message error" th:if="${error}" th:text="${error}" role="alert"></p></section>
+
+<section class="card" aria-labelledby="ai-form-heading"><h2 id="ai-form-heading">Analiză AI pe un snapshot nou</h2>
+<form method="post" action="/analyze-ai" id="ai-form">
+<label for="ai-url">URL public</label><input id="ai-url" name="url" type="url" required autocomplete="url" th:value="${url}" placeholder="https://exemplu.ro/pagina">
+<label for="ai-viewport">Viewport</label><select id="ai-viewport" name="viewport" required><option th:each="item : ${viewports}" th:value="${item}" th:text="${item + ' · ' + item.width + '×' + item.height}"></option></select>
+<label for="ai-scenario">Scenariu intern</label><select id="ai-scenario" name="interactionScenarioId"><option value="none">Fără interacțiuni</option><option th:each="item : ${interactionScenarios}" th:value="${item.id}" th:text="${item.displayName}"></option></select>
+<label for="ai-model">Model</label><select id="ai-model" name="modelId" required><option th:each="item : ${aiModels}" th:value="${item.key}" th:text="${item.value.displayName + ' · ' + item.value.providerModel}"></option></select>
+<label for="ai-condition">Condiție</label><select id="ai-condition" name="aiCondition" required><option th:each="item : ${aiConditions}" th:value="${item}" th:text="${item}"></option></select>
+<input type="hidden" name="aiProfile" value="APP_DEFAULT_V1"><input type="hidden" id="maximum-cost" name="maximumCostUsd" value="0">
+<p id="ai-cost-estimate" class="form-note" role="status">Estimarea costului se încarcă înaintea apelului.</p>
+<label><input type="checkbox" name="paidActionConfirmed" value="true" required> Confirm explicit apelul extern plătit în limita afișată.</label>
+<button type="submit">Capturează și rulează analiza AI</button></form>
+<p class="form-note">AI_TEXT nu primește captura; AI_MULTIMODAL primește aceeași structură plus <code>viewport.png</code>. Nicio condiție principală nu primește rezultatul axe-core.</p></section>
+
+<section class="card result" th:if="${snapshot}" aria-labelledby="result-heading">
+<div class="result-heading"><h2 id="result-heading">Rezultatul capturii</h2><strong class="status" th:text="${snapshot.status}">SUCCESS</strong></div>
+<dl class="summary">
+<div><dt>Viewport</dt><dd th:text="${snapshot.viewport + ' · ' + snapshot.viewport.width + '×' + snapshot.viewport.height}"></dd></div>
+<div><dt>URL final</dt><dd th:text="${snapshot.finalUrl != null ? snapshot.finalUrl : 'Indisponibil'}"></dd></div>
+<div><dt>Durată</dt><dd th:text="${snapshot.navigation != null ? snapshot.navigation.loadDurationMs + ' ms' : 'Indisponibilă'}"></dd></div>
+<div><dt>Cod eroare</dt><dd th:text="${snapshot.errorCode != null ? snapshot.errorCode : 'Niciunul'}"></dd></div>
+</dl>
+<p class="message error" th:if="${snapshot.errorMessage}" th:text="${snapshot.errorMessage}" role="alert"></p>
+<div th:if="${!snapshot.warnings.empty}"><h3>Avertismente</h3><ul><li th:each="warning : ${snapshot.warnings}" th:text="${warning}"></li></ul></div>
+<div th:if="${!snapshot.artifacts.empty}"><h3>Artefacte tehnice</h3><div class="table-wrap"><table><thead><tr><th>Tip</th><th>Cale relativă</th><th>Dimensiune</th><th>SHA-256</th></tr></thead>
+<tbody><tr th:each="artifact : ${snapshot.artifacts}"><td th:text="${artifact.artifactType}"></td><td th:text="${artifact.relativePath}"></td><td th:text="${artifact.byteSize + ' B'}"></td><td class="hash" th:text="${artifact.sha256}"></td></tr></tbody></table></div></div>
+<p class="form-note" th:if="${axeResult == null}">Rezultatul descrie numai capturarea browserului; nu conține constatări sau certificare WCAG.</p>
+</section>
+
+<section class="card result" th:if="${axeResult}" aria-labelledby="axe-heading">
+<div class="result-heading"><h2 id="axe-heading">Raport tehnic axe-core</h2><strong class="status" th:text="${axeResult.status}">SUCCESS</strong></div>
+<dl class="summary">
+<div><dt>Profil</dt><dd th:text="${axeResult.profileVersion}">WCAG_22_AA_V1</dd></div>
+<div><dt>Versiune motor</dt><dd th:text="${axeResult.engineVersion != null ? axeResult.engineVersion : 'Indisponibilă'}"></dd></div>
+<div><dt>Durată</dt><dd th:text="${axeResult.durationMs + ' ms'}"></dd></div>
+<div><dt>Reguli / noduri cu încălcări</dt><dd th:text="${axeResult.violations.size() + ' / ' + axeResult.violationNodeCount()}"></dd></div>
+<div><dt>Necesită verificare manuală</dt><dd th:text="${axeResult.incomplete.size() + ' reguli · ' + axeResult.incompleteNodeCount() + ' noduri'}"></dd></div>
+<div><dt>Passes / inapplicable</dt><dd th:text="${axeResult.passes.size() + ' / ' + axeResult.inapplicable.size()}"></dd></div>
+</dl>
+<p class="message error" th:if="${axeResult.errorMessage}" th:text="${axeResult.errorCode + ': ' + axeResult.errorMessage}" role="alert"></p>
+
+<div aria-labelledby="violations-heading"><h3 id="violations-heading">Încălcări</h3>
+<p th:if="${axeResult.violations.empty}">Nu au fost raportate încălcări pentru profilul selectat.</p>
+<details th:each="rule : ${axeResult.violations}"><summary th:text="${rule.id + ' · ' + (rule.impact != null ? rule.impact : 'impact necunoscut') + ' · ' + rule.nodes.size() + ' noduri'}"></summary>
+<p th:text="${rule.help}"></p><p><a th:href="${rule.helpUrl}" target="_blank" rel="noreferrer">Ajutor axe-core</a></p>
+<p><strong>Etichete:</strong> <span th:text="${#strings.listJoin(rule.tags, ', ')}"></span></p>
+<article th:each="node : ${rule.nodes}"><h4 th:text="${node.target}">Selector</h4><pre th:text="${node.html}"></pre><p th:text="${node.failureSummary}"></p></article>
+</details></div>
+
+<div aria-labelledby="incomplete-heading"><h3 id="incomplete-heading">Necesită verificare manuală</h3>
+<p th:if="${axeResult.incomplete.empty}">Nu există rezultate incomplete.</p>
+<details th:each="rule : ${axeResult.incomplete}"><summary th:text="${rule.id + ' · ' + (rule.impact != null ? rule.impact : 'impact necunoscut') + ' · ' + rule.nodes.size() + ' noduri'}"></summary>
+<p th:text="${rule.help}"></p><p><a th:href="${rule.helpUrl}" target="_blank" rel="noreferrer">Ajutor axe-core</a></p>
+<article th:each="node : ${rule.nodes}"><h4 th:text="${node.target}">Selector</h4><pre th:text="${node.html}"></pre><p th:text="${node.failureSummary}"></p></article>
+</details></div>
+
+<div th:if="${!axeResult.artifacts.empty}"><h3>Artefacte axe-core</h3><ul><li th:each="artifact : ${axeResult.artifacts}"><span th:text="${artifact.relativePath}"></span> — <span class="hash" th:text="${artifact.sha256}"></span></li></ul></div>
+<p class="form-note"><strong>Limită:</strong> rezultatul automat axe-core nu reprezintă certificare oficială WCAG și nu înlocuiește evaluarea umană.</p>
+</section>
+
+<section class="card result" th:if="${aiResult}" aria-labelledby="ai-result-heading">
+<div class="result-heading"><h2 id="ai-result-heading">Raport AI structurat</h2><strong class="status" th:text="${aiResult.success ? 'SUCCESS' : 'FAILED'}"></strong></div>
+<dl class="summary"><div><dt>Model</dt><dd th:text="${aiResult.modelId + ' · ' + aiResult.providerModel}"></dd></div><div><dt>Condiție</dt><dd th:text="${aiResult.condition}"></dd></div><div><dt>Cost real</dt><dd th:text="${aiResult.cost != null ? aiResult.cost.amountUsd + ' USD' : 'Indisponibil'}"></dd></div><div><dt>Tokeni</dt><dd th:text="${aiResult.usage.totalTokens}"></dd></div><div><dt>Latență</dt><dd th:text="${aiResult.latencyMs + ' ms'}"></dd></div><div><dt>Retry</dt><dd th:text="${aiResult.retryCount}"></dd></div></dl>
+<p class="message error" th:if="${aiResult.errorCode}" th:text="${aiResult.errorCode + ': ' + aiResult.errorMessage}" role="alert"></p>
+<pre th:if="${aiResult.parsed}" th:text="${aiResult.parsed.toPrettyString()}"></pre>
+<p class="form-note">Raportul AI oferă sprijin experimental și nu constituie certificare WCAG.</p></section>
+
+<section class="card result" th:if="${normalizedReport}" aria-labelledby="normalized-heading">
+<div class="result-heading"><h2 id="normalized-heading">Raport normalizat</h2><strong class="status" th:text="${normalizedReport.status}">SUCCESS</strong></div>
+<p class="message error" th:if="${normalizedReport.status.name() == 'PARTIAL'}" role="status">Rezultat parțial: componentele valide sunt păstrate, iar componenta eșuată este indicată mai jos.</p>
+<dl class="summary"><div><dt>Metodă</dt><dd th:text="${normalizedReport.configuration.get('method')}"></dd></div><div><dt>Model</dt><dd th:text="${normalizedReport.configuration.getOrDefault('model', 'N/A')}"></dd></div><div><dt>Total</dt><dd th:text="${normalizedReport.summary.total}"></dd></div><div><dt>AXE_ONLY / AI_ONLY / BOTH</dt><dd th:text="${normalizedReport.summary.axeOnly + ' / ' + normalizedReport.summary.aiOnly + ' / ' + normalizedReport.summary.both}"></dd></div><div><dt>Tokeni</dt><dd th:text="${normalizedReport.inputTokens + normalizedReport.outputTokens}"></dd></div><div><dt>Cost</dt><dd th:text="${normalizedReport.costUsd + ' USD'}"></dd></div></dl>
+<h3>Starea componentelor</h3><ul><li th:each="component : ${normalizedReport.components}"><strong th:text="${component.component}"></strong>: <span th:text="${component.status}"></span><span th:if="${component.errorMessage}" th:text="${' — ' + component.errorCode + ': ' + component.errorMessage}"></span></li></ul>
+<div th:if="${!normalizedReport.limitations.empty}"><h3>Limitări</h3><ul><li th:each="limitation : ${normalizedReport.limitations}" th:text="${limitation}"></li></ul></div>
+<fieldset class="report-filters"><legend>Filtre constatări</legend>
+<label for="filter-viewport">Viewport</label><select id="filter-viewport"><option value="">Toate</option><option th:each="item : ${viewports}" th:value="${item}" th:text="${item}"></option></select>
+<label for="filter-method">Metodă</label><select id="filter-method"><option value="">Toate</option><option th:value="${normalizedReport.configuration.get('method')}" th:text="${normalizedReport.configuration.get('method')}"></option></select>
+<label for="filter-model">Model</label><select id="filter-model"><option value="">Toate</option><option th:if="${normalizedReport.configuration.containsKey('model')}" th:value="${normalizedReport.configuration.get('model')}" th:text="${normalizedReport.configuration.get('model')}"></option></select>
+<label for="filter-source">Sursă</label><select id="filter-source"><option value="">Toate</option><option>AXE_ONLY</option><option>AI_ONLY</option><option>BOTH</option></select>
+<label for="filter-wcag">Criteriu WCAG</label><input id="filter-wcag" inputmode="decimal" placeholder="de ex. 1.1.1">
+<label for="filter-severity">Severitate</label><select id="filter-severity"><option value="">Toate</option><option>CRITICAL</option><option>SERIOUS</option><option>MODERATE</option><option>MINOR</option><option>UNKNOWN</option></select>
+<label for="filter-status">Stare raport</label><select id="filter-status"><option value="">Toate</option><option th:value="${normalizedReport.status}" th:text="${normalizedReport.status}"></option></select>
+</fieldset>
+<p id="filter-result-status" role="status" aria-live="polite"></p>
+<div class="table-wrap"><table id="normalized-findings"><caption>Constatări normalizate; fiecare rând păstrează referințele către sursa brută.</caption><thead><tr><th>Viewport</th><th>Sursă</th><th>Severitate</th><th>WCAG</th><th>Element</th><th>Constatare</th><th>Referințe</th></tr></thead><tbody>
+<tr th:each="finding : ${normalizedReport.findings}" th:attr="data-viewport=${finding.viewport},data-method=${normalizedReport.configuration.get('method')},data-model=${normalizedReport.configuration.getOrDefault('model','')},data-source=${finding.source},data-severity=${finding.displaySeverity},data-wcag=${#strings.listJoin(finding.wcagCriteria, ',')},data-status=${normalizedReport.status}"><td th:text="${finding.viewport}"></td><td th:text="${finding.source}"></td><td th:text="${finding.displaySeverity}"></td><td th:text="${#strings.listJoin(finding.wcagCriteria, ', ')}"></td><td th:text="${finding.location != null ? finding.location.selector : 'Necunoscut'}"></td><td><strong th:text="${finding.title}"></strong><p th:text="${finding.description}"></p></td><td th:text="${finding.sourceRefs.size() + ' · duplicate: ' + finding.duplicateCount}"></td></tr>
+</tbody></table></div>
+<h3>Comparație pe viewporturi</h3><div class="table-wrap"><table><caption>Numărul constatărilor rămâne separat pentru desktop, mobile și reflow.</caption><thead><tr><th>Viewport</th><th>Total</th><th>AXE_ONLY</th><th>AI_ONLY</th><th>BOTH</th></tr></thead><tbody><tr th:each="item : ${normalizedReport.viewportComparison}"><td th:text="${item.viewport}"></td><td th:text="${item.total}"></td><td th:text="${item.axeOnly}"></td><td th:text="${item.aiOnly}"></td><td th:text="${item.both}"></td></tr></tbody></table></div>
+<p class="form-note">Normalizarea nu clasifică TP/FP/FN/TN și nu modifică ground truth-ul.</p></section>
+</main><script>
+(() => { const model = document.getElementById('ai-model'); const estimate = document.getElementById('ai-cost-estimate'); const limit = document.getElementById('maximum-cost');
+  async function refresh() { if (!model || !model.value) return; estimate.textContent = 'Se calculează estimarea…';
+    try { const response = await fetch('/api/v1/analyses/estimate?modelId=' + encodeURIComponent(model.value) + '&inputCharacters=150000&plannedCalls=1');
+      if (!response.ok) throw new Error(); const data = await response.json(); limit.value = data.estimatedTotal; estimate.textContent = `Estimare maximă: ${data.estimatedTotal} ${data.currency}, marjă 20%, prețuri ${data.pricesEffectiveFrom}.`;
+    } catch (_) { limit.value = '0'; estimate.textContent = 'Estimarea nu este disponibilă; apelul rămâne blocat.'; }
+  } model?.addEventListener('change', refresh); refresh(); })();
+(() => { const table = document.getElementById('normalized-findings'); if (!table) return;
+  const fields = ['viewport','method','model','source','wcag','severity','status']; const controls = Object.fromEntries(fields.map(name => [name, document.getElementById('filter-' + name)])); const status = document.getElementById('filter-result-status');
+  function apply() { let visible = 0; table.querySelectorAll('tbody tr').forEach(row => { const matches = fields.every(name => !controls[name].value || (row.dataset[name] || '').toLowerCase().includes(controls[name].value.toLowerCase())); row.hidden = !matches; if (matches) visible++; }); status.textContent = `${visible} constatări afișate.`; }
+  Object.values(controls).forEach(control => control.addEventListener('input', apply)); apply(); })();
+</script></body></html>

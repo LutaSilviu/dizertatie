@@ -1,0 +1,15 @@
+package ro.sluta.accessibility.analysis.ai;
+
+public enum AiErrorCode {
+    AI_NOT_CONFIGURED,
+    AI_MODEL_DISABLED,
+    AI_TIMEOUT,
+    AI_RATE_LIMITED,
+    AI_PROVIDER_ERROR,
+    AI_REFUSAL,
+    AI_TRUNCATED,
+    AI_SCHEMA_INVALID,
+    AI_RESPONSE_EMPTY,
+    AI_ARTIFACT_WRITE_FAILED,
+    AI_COST_LIMIT_EXCEEDED
+}

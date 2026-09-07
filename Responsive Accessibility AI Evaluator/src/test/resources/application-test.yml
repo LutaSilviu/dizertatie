@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:accessibility;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  thymeleaf:
+    cache: false
+app:
+  storage:
+    directory: ./target/test-storage
+  browser:
+    limits:
+      navigation-timeout: 2s
+      total-capture-timeout: 15s
+      interaction-step-timeout: 500ms
+    stabilization:
+      font-timeout: 200ms
+      final-delay: 50ms
+  axe:
+    timeout: 5s

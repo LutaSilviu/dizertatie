@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: responsive-accessibility-ai-postgres
+    environment:
+      POSTGRES_DB: accessibility
+      POSTGRES_USER: accessibility
+      POSTGRES_PASSWORD: accessibility
+    ports: ["5432:5432"]
+    volumes: [accessibility-postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accessibility -d accessibility"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  accessibility-postgres-data:

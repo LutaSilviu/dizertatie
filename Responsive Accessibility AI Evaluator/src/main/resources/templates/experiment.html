@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ro" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runner experiment F7</title><link rel="stylesheet" th:href="@{/css/app.css}"></head>
+<body><main class="page-shell"><header><p class="eyebrow">F7 · Plan reproductibil</p><h1>Runnerul experimentului</h1>
+<p>Dry-run-ul de mai jos nu pornește browserul și nu apelează API-ul AI.</p></header>
+<section class="card"><h2>Planul complet calculat</h2><dl class="summary">
+<div><dt>Cazuri</dt><dd th:text="${dryRun.plan.plannedCases}">48</dd></div>
+<div><dt>axe-core</dt><dd th:text="${dryRun.plan.plannedAxeRuns}">48</dd></div>
+<div><dt>AI_TEXT</dt><dd th:text="${dryRun.plan.plannedAiTextRuns}">288</dd></div>
+<div><dt>AI_MULTIMODAL</dt><dd th:text="${dryRun.plan.plannedAiMultimodalRuns}">288</dd></div>
+<div><dt>Apeluri AI</dt><dd th:text="${dryRun.plan.plannedAiCalls}">576</dd></div>
+<div><dt>Hibrid</dt><dd th:text="${dryRun.plan.plannedHybridResults}">288</dd></div>
+<div><dt>Seed</dt><dd th:text="${dryRun.plan.randomSeed}"></dd></div>
+<div><dt>Concurență AI</dt><dd th:text="${dryRun.plan.aiConcurrency}">1</dd></div>
+<div><dt>Cost maxim estimat</dt><dd th:text="${dryRun.plan.estimatedMaxCostUsd + ' USD'}"></dd></div>
+<div><dt>Hard budget</dt><dd th:text="${dryRun.plan.hardBudgetUsd + ' USD'}"></dd></div></dl>
+<p class="form-note">Configurație <code th:text="${dryRun.configuration.configurationVersion}"></code>, hash <code class="hash" th:text="${dryRun.configuration.configurationHash}"></code>.</p>
+<p class="message success" role="status">Browser pornit: nu · API apelat: nu.</p>
+<p><a href="/benchmark">Inspectează cele 24 fixture-uri</a> · <a href="/experiment/evaluations">Deschide evaluarea umană</a></p></section>
+<section class="card"><h2>Reguli operaționale</h2><ul><li>Pilot implicit: S01 și S04, BAD/GOOD, toate condițiile planificate.</li><li>Reluarea folosește chei unice și nu dublează execuțiile finalizate.</li><li>Runnerul se oprește înaintea apelului care ar depăși hard budget.</li><li>Experimentul final de 576 apeluri cere confirmare plătită explicită.</li></ul></section>
+</main></body></html>

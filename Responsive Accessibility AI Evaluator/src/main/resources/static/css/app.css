@@ -1,0 +1,16 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; } * { box-sizing: border-box; }
+body { margin: 0; background: #f4f7fb; color: #172033; } .page-shell { width: min(100% - 2rem, 52rem); margin: 0 auto; padding: 3rem 0; }
+.eyebrow { color: #2457a6; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; } h1 { font-size: clamp(2rem, 6vw, 3.5rem); line-height: 1.1; }
+.card { background: white; border: 1px solid #d8e0ed; border-radius: .75rem; padding: clamp(1rem, 4vw, 2rem); box-shadow: 0 .5rem 1.5rem #17203312; }
+.card + .card { margin-top: 1.5rem; }
+form { display: grid; gap: .75rem; } label { font-weight: 700; } input, select, button { min-height: 2.75rem; border-radius: .4rem; font: inherit; }
+input, select { border: 1px solid #75839a; padding: .5rem .75rem; background: white; } button { border: 0; padding: .5rem 1rem; background: #2457a6; color: white; font-weight: 700; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: .2rem solid #f0a400; outline-offset: .15rem; } .message { padding: .75rem; border-radius: .4rem; }
+.success { background: #e7f6ec; color: #125c2d; } .error { background: #fdeaea; color: #8c1d1d; }
+.result { margin-top: 1.5rem; } .result-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.status { border: 2px solid currentColor; border-radius: 999px; padding: .3rem .7rem; } .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.summary div { border-left: .25rem solid #8ca9d4; padding-left: .75rem; } dt { font-weight: 700; } dd { margin: .25rem 0 0; overflow-wrap: anywhere; }
+.form-note { color: #4b5870; font-size: .95rem; } .table-wrap { overflow-x: auto; } table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid #d8e0ed; padding: .65rem; text-align: left; vertical-align: top; } .hash { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+.report-filters { display: grid; gap: .65rem; border: 1px solid #75839a; margin: 1rem 0; } caption { text-align: left; font-weight: 700; padding: .5rem 0; } [hidden] { display: none !important; }
+@media (max-width: 40rem) { .page-shell { width: min(100% - 1rem, 52rem); padding: 1.25rem 0; } .summary { grid-template-columns: 1fr; } .result-heading { align-items: flex-start; flex-direction: column; } }
