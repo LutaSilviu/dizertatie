@@ -3,7 +3,7 @@
 Versiune: 1.0  
 Data: 3 septembrie 2026
 Autor: Silviu Vasilică Luța  
-Stare generală: F1–F7 implementate și verificate; experimentul plătit integral nu a fost lansat
+Stare generală: F1–F7 sunt incluse în versiunea curentă a repository-ului nou; experimentul plătit integral nu a fost executat
 
 ## Tema de lucru
 
@@ -26,7 +26,13 @@ Analiza vizează site-uri și aplicații web responsive, redate controlat în de
 
 ## Starea implementării
 
-| Fază | Stare | Checkpoint / rezultat |
+Repository-ul activ este cel nou, pe branch-ul `main`, cu remote `https://github.com/LutaSilviu/dizertatie.git`. Istoricul Git actual conține inițial doar commiturile `193a12e` (`first commit`) și `a381ad4` (`changes`); întreaga funcționalitate F1–F7 este inclusă în această versiune curentă a repository-ului nou.
+
+### Istoric al repository-ului anterior (nu există în istoricul Git actual)
+
+Tabelul de mai jos consemnează checkpointurile din **repository-ul anterior** și este păstrat exclusiv ca istoric. Aceste commituri **nu** se regăsesc în istoricul Git al repository-ului nou și nu trebuie tratate ca referințe existente în `main`.
+
+| Fază | Stare | Checkpoint istoric (repository anterior) |
 |---|---|---|
 | F1 — Schelet | Închisă | `e606527` — `feat: checkpoint approved F1 foundation` |
 | F2 — Browser și snapshot | Închisă | `5b32b2e9d194a156701c0d968147eddcbdd14764` — `feat: checkpoint approved F2 browser snapshots` |
@@ -34,9 +40,9 @@ Analiza vizează site-uri și aplicații web responsive, redate controlat în de
 | F4 — AI | Închisă | `1f9f0482a22f57f59e70e25dd6f2f53be0e03c36` — `feat: checkpoint approved F4 AI analysis` |
 | F5 — Normalizare și raport | Închisă | `a728c629e851091a1b52b487fdccfa80d700cedf` — `feat: checkpoint approved F5 normalized reporting` |
 | F6 — Persistență și export | Închisă | `6498ffddf3cb91f3181a656085c321ec9d16d9f2` — `feat: checkpoint approved F6 persistence exports` |
-| F7 — Experiment | Implementată și verificată | Secțiunea 22 din documentul 06; 82/82 teste implicite PASS și 1/1 integrare PostgreSQL PASS; checkpoint separat pregătit |
+| F7 — Experiment | Implementată | Secțiunea 22 din documentul 06; funcționalitatea F7 este inclusă în repository-ul nou |
 
-F7 este construită exclusiv peste checkpointul F6 pe branch-ul `master`. Suita implicită F1–F7 are 82 de teste, fără eșecuri, erori sau teste omise. Testul separat Testcontainers a migrat PostgreSQL 16.11 de la zero până la Flyway V2 și a trecut fără omitere. Profilul local a pornit cu PostgreSQL, health check-ul a răspuns `UP`, manifestul a raportat 24 fixture-uri și 48 de cazuri, iar dry-run-ul a raportat 576 de apeluri AI fără a porni browserul sau API-ul. Nu au fost efectuate apeluri plătite.
+În repository-ul anterior, suita implicită F1–F7 avea 82 de teste. Numărul de teste din versiunea curentă se reconfirmă exclusiv prin rularea Maven pe JDK 21 și se actualizează în documentul 08 conform rezultatului efectiv. Experimentul complet plătit (576 de apeluri AI) nu a fost executat.
 
 ## Decizii tehnice înghețate
 
@@ -78,7 +84,7 @@ Următoarele valori se completează ca date administrative sau configurație efe
 
 ## Următorul pas
 
-După checkpointul F7, urmează pilotul aprobat și înghețarea parametrilor efectivi ai rulării. Orice apel AI real necesită confirmare explicită a costului, iar experimentul complet de 576 de apeluri rămâne separat de verificarea tehnică.
+Cu F1–F7 incluse în repository-ul nou, urmează pilotul aprobat și înghețarea parametrilor efectivi ai rulării. Orice apel AI real necesită confirmare explicită a costului, iar experimentul complet de 576 de apeluri rămâne separat de verificarea tehnică.
 
 Nu mai este necesară o etapă de redefinire înaintea fiecărei faze. Documentele se modifică ulterior numai pentru a consemna versiuni reale, rezultate, deviații tehnice justificate sau schimbări experimentale aprobate.
 

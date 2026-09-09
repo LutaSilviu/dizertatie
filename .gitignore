@@ -1,1 +1,6 @@
 .codex-tmp/
+.idea/
+target/
+var/
+*.iml
+.DS_Store
