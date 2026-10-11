@@ -6,6 +6,7 @@ import com.microsoft.playwright.Playwright;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 @Configuration
 public class PlaywrightConfig {
@@ -14,14 +15,16 @@ public class PlaywrightConfig {
     private Browser browser;
 
     @Bean
-    public BrowserType chromium() {
+    @Lazy
+    public BrowserType chromiumBrowserType() {
         playwright = Playwright.create();
         return playwright.chromium();
     }
 
     @Bean
-    public Browser browser(BrowserType chromium) {
-        browser = chromium.launch(new BrowserType.LaunchOptions().setHeadless(true));
+    @Lazy
+    public Browser browser(BrowserType chromiumBrowserType) {
+        browser = chromiumBrowserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
         return browser;
     }
 
