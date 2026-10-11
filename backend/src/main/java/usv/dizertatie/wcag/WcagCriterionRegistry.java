@@ -24,7 +24,7 @@ public class WcagCriterionRegistry {
     private Map<String, WcagCriterion> byId = Collections.emptyMap();
 
     @PostConstruct
-    void load() throws IOException {
+    public void load() throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         ClassPathResource resource = new ClassPathResource(RESOURCE_PATH);
         try (InputStream in = resource.getInputStream()) {
