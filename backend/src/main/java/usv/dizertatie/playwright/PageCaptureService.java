@@ -7,7 +7,8 @@ import com.microsoft.playwright.options.WaitUntilState;
 import org.springframework.stereotype.Service;
 
 /**
- * Spring service that captures the rendered HTML of a web page using Playwright.
+ * Spring service that captures the rendered HTML and a full-page screenshot of a web page
+ * using a single Playwright browser session.
  */
 @Service
 public class PageCaptureService {
@@ -20,6 +21,34 @@ public class PageCaptureService {
 
     /**
      * Launches a headless browser, navigates to the given URL, waits for network idle,
+     * and returns a {@link PageCapture} containing both the rendered HTML and a full-page
+     * PNG screenshot — all captured in one browser session.
+     *
+     * @param url the URL to capture
+     * @return a {@link PageCapture} with the rendered HTML and screenshot bytes
+     * @throws PageCaptureException if the page cannot be reached or any error occurs
+     */
+    public PageCapture capture(String url) {
+        Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+        Page page = null;
+        try {
+            page = browser.newPage();
+            page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+            String html = page.content();
+            byte[] screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
+            return new PageCapture(html, screenshotPng);
+        } catch (Exception e) {
+            throw new PageCaptureException("Failed to capture page from URL: " + url, e);
+        } finally {
+            if (page != null) {
+                page.close();
+            }
+            browser.close();
+        }
+    }
+
+    /**
+     * Launches a headless browser, navigates to the given URL, waits for network idle,
      * and returns the rendered outerHTML of the page.
      *
      * @param url the URL to capture
@@ -27,19 +56,6 @@ public class PageCaptureService {
      * @throws PageCaptureException if the page cannot be reached or any error occurs
      */
     public String captureHtml(String url) {
-        Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
-        Page page = null;
-        try {
-            page = browser.newPage();
-            page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
-            return page.content();
-        } catch (Exception e) {
-            throw new PageCaptureException("Failed to capture HTML from URL: " + url, e);
-        } finally {
-            if (page != null) {
-                page.close();
-            }
-            browser.close();
-        }
+        return capture(url).html();
     }
 }
