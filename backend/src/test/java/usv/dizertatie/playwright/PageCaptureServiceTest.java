@@ -34,6 +34,30 @@ class PageCaptureServiceTest {
     }
 
     @Test
+    void capture_successfulNavigation_returnsPageCaptureWithHtmlAndScreenshot() {
+        // Arrange
+        String url = "https://example.com";
+        String expectedHtml = "<html><head></head><body><h1>Hello</h1></body></html>";
+        byte[] expectedScreenshot = new byte[]{1, 2, 3};
+
+        when(browserType.launch(any(BrowserType.LaunchOptions.class))).thenReturn(browser);
+        when(browser.newPage()).thenReturn(page);
+        when(page.navigate(eq(url), any(Page.NavigateOptions.class))).thenReturn(null);
+        when(page.content()).thenReturn(expectedHtml);
+        when(page.screenshot(any(Page.ScreenshotOptions.class))).thenReturn(expectedScreenshot);
+
+        // Act
+        PageCapture result = service.capture(url);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.html()).isEqualTo(expectedHtml);
+        assertThat(result.screenshotPng()).isEqualTo(expectedScreenshot);
+        verify(page).close();
+        verify(browser).close();
+    }
+
+    @Test
     void captureHtml_successfulNavigation_returnsHtmlContent() {
         // Arrange
         String url = "https://example.com";
@@ -43,6 +67,7 @@ class PageCaptureServiceTest {
         when(browser.newPage()).thenReturn(page);
         when(page.navigate(eq(url), any(Page.NavigateOptions.class))).thenReturn(null);
         when(page.content()).thenReturn(expectedHtml);
+        when(page.screenshot(any(Page.ScreenshotOptions.class))).thenReturn(new byte[]{1, 2, 3});
 
         // Act
         String result = service.captureHtml(url);
