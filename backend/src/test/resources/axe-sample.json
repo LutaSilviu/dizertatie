@@ -1,0 +1,40 @@
+[
+  {
+    "id": "image-alt",
+    "impact": "critical",
+    "description": "Images must have alternate text",
+    "help": "Image elements must have an alt attribute",
+    "helpUrl": "https://dequeuniversity.com/rules/axe/4.9/image-alt",
+    "tags": ["cat.text-alternatives", "wcag2a", "wcag111", "section508", "TTv5", "TT7.a", "TT7.b"],
+    "nodes": [
+      {
+        "any": [],
+        "all": [],
+        "none": [],
+        "impact": "critical",
+        "html": "<img src=\"hero.jpg\" class=\"hero\">",
+        "target": ["img.hero"],
+        "failureSummary": "Fix any of the following: Element does not have an alt attribute"
+      }
+    ]
+  },
+  {
+    "id": "color-contrast",
+    "impact": "serious",
+    "description": "Elements must meet minimum color contrast ratio thresholds",
+    "help": "Elements must have sufficient color contrast",
+    "helpUrl": "https://dequeuniversity.com/rules/axe/4.9/color-contrast",
+    "tags": ["cat.color", "wcag2aa", "wcag143"],
+    "nodes": [
+      {
+        "any": [],
+        "all": [],
+        "none": [],
+        "impact": "serious",
+        "html": "<p class=\"subtitle\">Subtitle text</p>",
+        "target": ["p.subtitle"],
+        "failureSummary": "Fix any of the following: Element has insufficient color contrast"
+      }
+    ]
+  }
+]
