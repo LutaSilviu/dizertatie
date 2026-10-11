@@ -97,6 +97,13 @@
 			<artifactId>spring-restdocs-mockmvc</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Playwright for Java -->
+		<dependency>
+			<groupId>com.microsoft.playwright</groupId>
+			<artifactId>playwright</artifactId>
+			<version>1.44.0</version>
+		</dependency>
 	</dependencies>
 	<dependencyManagement>
 		<dependencies>
@@ -140,6 +147,27 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>3.3.0</version>
+				<executions>
+					<execution>
+						<id>install-playwright-browsers</id>
+						<phase>test-compile</phase>
+						<goals><goal>java</goal></goals>
+						<configuration>
+							<mainClass>com.microsoft.playwright.CLI</mainClass>
+							<arguments>
+								<argument>install</argument>
+								<argument>chromium</argument>
+								<argument>--with-deps</argument>
+							</arguments>
+							<skip>${skipPlaywrightInstall}</skip>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
