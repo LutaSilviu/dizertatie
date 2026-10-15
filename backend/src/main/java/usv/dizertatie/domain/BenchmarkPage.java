@@ -25,6 +25,12 @@ public class BenchmarkPage {
     @Column(nullable = false)
     private String status;
 
+    private Long axeScanId;
+
+    private Long aiScanId;
+
+    private Long combinedScanId;
+
     private Long latencyAxeMs;
 
     private Long latencyAiMs;
