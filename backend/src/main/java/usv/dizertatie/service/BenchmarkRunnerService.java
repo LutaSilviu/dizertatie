@@ -93,13 +93,14 @@ public class BenchmarkRunnerService {
         int failedPages = 0;
 
         for (String url : urls) {
+            final BenchmarkRun currentRun = run;
             List<BenchmarkPage> pages = benchmarkPageRepository.findByRunId(run.getId());
             BenchmarkPage page = pages.stream()
                     .filter(p -> url.equals(p.getUrl()) && "PENDING".equals(p.getStatus()))
                     .findFirst()
                     .orElseGet(() -> {
                         BenchmarkPage newPage = BenchmarkPage.builder()
-                                .run(run)
+                                .run(currentRun)
                                 .url(url)
                                 .status("PENDING")
                                 .build();
