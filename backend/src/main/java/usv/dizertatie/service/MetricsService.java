@@ -139,7 +139,25 @@ public class MetricsService {
             byCategory.put(cat, catMap);
         }
 
-        return new BenchmarkMetrics(methods, byCategory, fpExamples, fnExamples);
+        // Avg cost and latency from repository
+        Double avgCost = benchmarkPageRepository.avgEstimatedCostUsdByRunId(run.getId());
+        Map<String, Double> avgLatency = new LinkedHashMap<>();
+        Double avgAxe      = benchmarkPageRepository.avgLatencyAxeMsByRunId(run.getId());
+        Double avgAi       = benchmarkPageRepository.avgLatencyAiMsByRunId(run.getId());
+        Double avgCombined = benchmarkPageRepository.avgLatencyCombinedMsByRunId(run.getId());
+        if (avgAxe      != null) avgLatency.put("AXE",      avgAxe);
+        if (avgAi       != null) avgLatency.put("AI",       avgAi);
+        if (avgCombined != null) avgLatency.put("COMBINED", avgCombined);
+
+        return new BenchmarkMetrics(
+                run.getId(),
+                methods,
+                byCategory,
+                fpExamples,
+                fnExamples,
+                avgCost,
+                avgLatency
+        );
     }
 
     // -------------------------------------------------------------------------

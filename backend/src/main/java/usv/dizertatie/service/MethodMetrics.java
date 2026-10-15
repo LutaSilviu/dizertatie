@@ -7,6 +7,14 @@ public record MethodMetrics(double precision, double recall, double f1) {
 
     public static final MethodMetrics ZERO = new MethodMetrics(0.0, 0.0, 0.0);
 
+    /**
+     * Computes {@link MethodMetrics} from raw TP / FP / FN counts.
+     *
+     * @param tp true-positive count
+     * @param fp false-positive count
+     * @param fn false-negative count
+     * @return computed metrics (all zero when TP+FP+FN == 0)
+     */
     public static MethodMetrics of(int tp, int fp, int fn) {
         double precision = (tp + fp) > 0 ? (double) tp / (tp + fp) : 0.0;
         double recall    = (tp + fn) > 0 ? (double) tp / (tp + fn) : 0.0;
