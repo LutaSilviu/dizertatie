@@ -7,18 +7,35 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.domain.BenchmarkRun;
+import usv.dizertatie.repository.BenchmarkPageRepository;
 import usv.dizertatie.service.BenchmarkRunnerService;
 
 import java.util.List;
 import java.util.Map;
 
+/**
+ * REST endpoints for managing benchmark runs.
+ *
+ * <ul>
+ *   <li>{@code POST /benchmark-runs} — start a new async benchmark run</li>
+ *   <li>{@code GET  /benchmark-runs} — list all runs, newest first</li>
+ *   <li>{@code GET  /benchmark-runs/{id}/status} — poll run progress and, when complete, latency + cost averages</li>
+ * </ul>
+ */
 @RestController
 @RequestMapping("/benchmark-runs")
 @RequiredArgsConstructor
 public class BenchmarkController {
 
     private final BenchmarkRunnerService benchmarkRunnerService;
+    private final BenchmarkPageRepository benchmarkPageRepository;
 
+    /**
+     * Starts a new benchmark run asynchronously.
+     *
+     * @param request run configuration
+     * @return map containing {@code runId} of the newly created (PENDING) run
+     */
     @PostMapping
     public ResponseEntity<Map<String, Long>> createRun(@RequestBody BenchmarkRunRequest request) {
         AiModel model = AiModel.fromId(request.model());
@@ -31,28 +48,57 @@ public class BenchmarkController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of("runId", run.getId()));
     }
 
-    @GetMapping("/{id}/status")
-    public ResponseEntity<BenchmarkRunStatusResponse> getRunStatus(@PathVariable Long id) {
-        BenchmarkRun run = benchmarkRunnerService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "BenchmarkRun not found: " + id));
-        return ResponseEntity.ok(toStatusResponse(run));
-    }
-
+    /**
+     * Returns all benchmark runs ordered by creation date descending.
+     */
     @GetMapping
     public List<BenchmarkRunStatusResponse> listRuns() {
         return benchmarkRunnerService.findAllNewestFirst().stream()
-                .map(this::toStatusResponse)
+                .map(run -> toStatusResponse(run, false))
                 .toList();
     }
 
-    private BenchmarkRunStatusResponse toStatusResponse(BenchmarkRun run) {
+    /**
+     * Returns the current status of a benchmark run.
+     *
+     * <p>When {@code status=COMPLETE}, the response also includes average latency and cost
+     * metrics computed over all successfully-scanned pages.
+     *
+     * @param id run identifier
+     * @return status response; latency/cost fields are {@code null} unless status=COMPLETE
+     */
+    @GetMapping("/{id}/status")
+    public ResponseEntity<BenchmarkRunStatusResponse> getRunStatus(@PathVariable Long id) {
+        BenchmarkRun run = benchmarkRunnerService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "BenchmarkRun not found: " + id));
+        return ResponseEntity.ok(toStatusResponse(run, true));
+    }
+
+    private BenchmarkRunStatusResponse toStatusResponse(BenchmarkRun run, boolean includeAvgs) {
+        Double avgAxe = null;
+        Double avgAi = null;
+        Double avgCombined = null;
+        Double avgCost = null;
+
+        if (includeAvgs && "COMPLETE".equals(run.getStatus())) {
+            avgAxe = benchmarkPageRepository.avgLatencyAxeMsByRunId(run.getId());
+            avgAi = benchmarkPageRepository.avgLatencyAiMsByRunId(run.getId());
+            avgCombined = benchmarkPageRepository.avgLatencyCombinedMsByRunId(run.getId());
+            avgCost = benchmarkPageRepository.avgEstimatedCostUsdByRunId(run.getId());
+        }
+
         return new BenchmarkRunStatusResponse(
                 run.getId(),
                 run.getName(),
                 run.getStatus(),
                 run.getPagesDone(),
                 run.getTotalPages(),
-                run.getCreatedAt()
+                run.getCreatedAt(),
+                avgAxe,
+                avgAi,
+                avgCombined,
+                avgCost
         );
     }
 }
