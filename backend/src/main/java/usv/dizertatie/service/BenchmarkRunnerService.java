@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.ai.OpenAiCostRates;
 import usv.dizertatie.domain.BenchmarkPage;
 import usv.dizertatie.domain.BenchmarkRun;
 import usv.dizertatie.domain.GroundTruthLabel;
@@ -107,14 +108,33 @@ public class BenchmarkRunnerService {
                     });
 
             try {
+                // --- AXE scan ---
+                long axeStart = System.currentTimeMillis();
                 var axeScan = scanService.runAxeScan(url);
+                page.setLatencyAxeMs(System.currentTimeMillis() - axeStart);
                 page.setAxeScanId(axeScan.getId());
 
+                // --- AI scan ---
+                // Cost estimate: promptTokens ≈ htmlLength/4 (heuristic), completionTokens ≈ 500 (heuristic).
+                // The ScanService does not return the HTML used; we use a fixed representative HTML size of
+                // 15,000 characters (~3,750 tokens), which is a reasonable median for rendered web pages.
+                // This is an estimate only — see OpenAiCostRates for details.
+                final int ESTIMATED_HTML_LENGTH = 15_000;
+                long aiStart = System.currentTimeMillis();
                 var aiScan = scanService.runAiScan(url, model);
+                page.setLatencyAiMs(System.currentTimeMillis() - aiStart);
                 page.setAiScanId(aiScan.getId());
+                double aiCost = OpenAiCostRates.estimateCost(model, ESTIMATED_HTML_LENGTH);
 
+                // --- COMBINED scan ---
+                long combinedStart = System.currentTimeMillis();
                 var combinedScan = scanService.runCombinedScan(url, model);
+                page.setLatencyCombinedMs(System.currentTimeMillis() - combinedStart);
                 page.setCombinedScanId(combinedScan.getId());
+                double combinedCost = OpenAiCostRates.estimateCost(model, ESTIMATED_HTML_LENGTH);
+
+                // Sum AI + COMBINED costs (AXE-only has no OpenAI cost)
+                page.setEstimatedCostUsd(aiCost + combinedCost);
 
                 page.setStatus("DONE");
             } catch (Exception e) {
