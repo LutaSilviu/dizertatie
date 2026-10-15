@@ -154,6 +154,69 @@ class ScanControllerTest {
     }
 
     @Test
+    void getScansById_responseIncludesSeverityScore() throws Exception {
+        Scan scan = Scan.builder()
+                .id(2L)
+                .url("https://example.com")
+                .method("AXE")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        Finding finding = Finding.builder()
+                .id(20L)
+                .scan(scan)
+                .sourceMethod("AXE")
+                .wcagCriterion("1.1.1")
+                .wcagLevel("A")
+                .severity("serious")
+                .elementSelector("img")
+                .description("Missing alt text")
+                .build();
+
+        when(scanService.findById(2L)).thenReturn(scan);
+        when(scanService.findingsForScan(scan)).thenReturn(List.of(finding));
+
+        mockMvc.perform(get("/scans/2")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.severityScore").isNumber());
+    }
+
+    @Test
+    void getScansById_responseIncludesConformanceScores() throws Exception {
+        Scan scan = Scan.builder()
+                .id(3L)
+                .url("https://example.com")
+                .method("AXE")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        Finding finding = Finding.builder()
+                .id(30L)
+                .scan(scan)
+                .sourceMethod("AXE")
+                .wcagCriterion("1.1.1")
+                .wcagLevel("A")
+                .severity("serious")
+                .elementSelector("img")
+                .description("Missing alt text")
+                .build();
+
+        when(scanService.findById(3L)).thenReturn(scan);
+        when(scanService.findingsForScan(scan)).thenReturn(List.of(finding));
+
+        mockMvc.perform(get("/scans/3")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.conformanceScores").exists())
+                .andExpect(jsonPath("$.conformanceScores.levelA").isNumber())
+                .andExpect(jsonPath("$.conformanceScores.levelAA").isNumber())
+                .andExpect(jsonPath("$.conformanceScores.levelAAA").isNumber());
+    }
+
+    @Test
     void getScansById_withUnknownId_withValidApiKey_returns404() throws Exception {
         when(scanService.findById(999L))
                 .thenThrow(new ResponseStatusException(NOT_FOUND, "Scan not found: 999"));

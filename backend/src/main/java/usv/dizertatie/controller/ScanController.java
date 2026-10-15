@@ -6,6 +6,9 @@ import org.springframework.web.bind.annotation.*;
 import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.scoring.ConformanceScoringService;
+import usv.dizertatie.scoring.ConformanceScores;
+import usv.dizertatie.scoring.SeverityScoringService;
 import usv.dizertatie.service.ScanService;
 
 import java.util.List;
@@ -16,6 +19,8 @@ import java.util.List;
 public class ScanController {
 
     private final ScanService scanService;
+    private final SeverityScoringService severityScoringService;
+    private final ConformanceScoringService conformanceScoringService;
 
     @GetMapping
     public ScanHistoryResponse getScans(
@@ -81,11 +86,16 @@ public class ScanController {
                 ? scan.getTimestamp().atZone(java.time.ZoneOffset.UTC).toInstant()
                 : null;
 
+        double severityScore = severityScoringService.score(findings);
+        ConformanceScores conformanceScores = conformanceScoringService.score(findings);
+
         return new ScanResponse(
                 scan.getId(),
                 scan.getUrl(),
                 scan.getMethod(),
                 timestamp,
+                severityScore,
+                conformanceScores,
                 findingResponses
         );
     }
