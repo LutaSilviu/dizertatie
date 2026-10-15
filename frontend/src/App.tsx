@@ -1,19 +1,10 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import NavShell from './layout/NavShell'
 import AnalyzerPage from './analyzer/AnalyzerPage'
 import BenchmarkPage from './benchmark/BenchmarkPage'
 import SettingsPage from './settings/SettingsPage'
+import ReportPage from './report/ReportPage'
 import HistoryPage from './history/HistoryPage'
-
-function ReportPage() {
-  const { scanId } = useParams<{ scanId: string }>()
-  return (
-    <div style={{ padding: '1.5rem' }}>
-      <h1>Report</h1>
-      <p>Scan ID: {scanId}</p>
-    </div>
-  )
-}
 
 function App() {
   return (
