@@ -1,11 +1,14 @@
 package usv.dizertatie.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.export.CsvSerializer;
 import usv.dizertatie.scoring.ConformanceScoringService;
 import usv.dizertatie.scoring.ConformanceScores;
 import usv.dizertatie.scoring.SeverityScoringService;
@@ -21,6 +24,7 @@ public class ScanController {
     private final ScanService scanService;
     private final SeverityScoringService severityScoringService;
     private final ConformanceScoringService conformanceScoringService;
+    private final CsvSerializer csvSerializer;
 
     @GetMapping
     public ScanHistoryResponse getScans(
@@ -68,6 +72,21 @@ public class ScanController {
         List<Finding> findings = scanService.findingsForScan(scan);
         ScanResponse response = toResponse(scan, findings);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping(value = "/{id}/export.csv", produces = "text/csv")
+    public ResponseEntity<String> exportScanCsv(@PathVariable Long id) {
+        Scan scan = scanService.findById(id);
+        List<Finding> findings = scanService.findingsForScan(scan);
+        String csv = csvSerializer.serialize(scan, findings);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("text/csv"));
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"scan-" + id + ".csv\"");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(csv);
     }
 
     private ScanResponse toResponse(Scan scan, List<Finding> findings) {
