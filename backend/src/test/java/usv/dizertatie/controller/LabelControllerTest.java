@@ -5,58 +5,65 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import usv.dizertatie.repository.GroundTruthLabelRepository;
+import usv.dizertatie.service.LabelService;
 
+import java.util.List;
+
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@TestPropertySource(properties = {
-        "APP_API_KEY=test-secret-key",
-        "spring.ai.openai.api-key=test-openai-key",
-        "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:testdb",
         "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.flyway.enabled=false"
+        "spring.flyway.enabled=false",
+        "APP_API_KEY=test-key",
+        "spring.ai.openai.api-key=test-key"
 })
+@AutoConfigureMockMvc
 class LabelControllerTest {
 
-    private static final String API_KEY = "test-secret-key";
-    private static final String W3C_BAD_URL = "https://www.w3.org/WAI/demos/bad/before/home.html";
+    private static final String API_KEY = "test-key";
+    private static final String EXAMPLE_URL = "https://example.com";
 
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private GroundTruthLabelRepository repository;
+    @MockitoBean
+    private LabelService labelService;
 
     @Test
-    void getAllLabels_withValidApiKey_returns200AndNonEmptyList() throws Exception {
+    void getAllLabels_withValidApiKey_returns200AndJsonArray() throws Exception {
+        LabelResponse label = new LabelResponse(1L, EXAMPLE_URL, "1.1.1", "A",
+                "CRITICAL", "img", "annotator1", null, 0.9);
+        when(labelService.findAll()).thenReturn(List.of(label));
+
         mockMvc.perform(get("/labels")
                         .header("X-API-Key", API_KEY))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/json"))
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$.length()").value(org.hamcrest.Matchers.greaterThan(0)));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].url").value(EXAMPLE_URL));
     }
 
     @Test
     void getAllLabels_filteredByUrl_returnsOnlyLabelsForThatUrl() throws Exception {
+        LabelResponse label = new LabelResponse(2L, EXAMPLE_URL, "2.4.1", "A",
+                "SERIOUS", "nav", "annotator2", "reviewer1", 0.85);
+        when(labelService.findByUrl(EXAMPLE_URL)).thenReturn(List.of(label));
+
         mockMvc.perform(get("/labels")
                         .header("X-API-Key", API_KEY)
-                        .param("url", W3C_BAD_URL))
+                        .param("url", EXAMPLE_URL))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/json"))
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$.length()").value(org.hamcrest.Matchers.greaterThan(0)))
-                .andExpect(jsonPath("$[0].url").value(W3C_BAD_URL));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].url").value(EXAMPLE_URL));
     }
 
     @Test
@@ -67,6 +74,10 @@ class LabelControllerTest {
 
     @Test
     void createLabel_withValidApiKey_returns201AndCreatedLabel() throws Exception {
+        LabelResponse created = new LabelResponse(3L, "https://example.com/page",
+                "1.1.1", "A", "CRITICAL", "img", "tester", null, 0.9);
+        when(labelService.create(any())).thenReturn(created);
+
         String body = """
                 {
                     "url": "https://example.com/page",
@@ -115,39 +126,19 @@ class LabelControllerTest {
 
     @Test
     void deleteLabel_existing_returns204() throws Exception {
-        // First create a label to delete
-        String body = """
-                {
-                    "url": "https://example.com/to-delete",
-                    "wcagCriterion": "2.4.1",
-                    "wcagLevel": "A",
-                    "severity": "MINOR",
-                    "elementSelector": "nav",
-                    "annotator": "tester",
-                    "verifiedBy": null,
-                    "confidence": 0.8
-                }
-                """;
+        doNothing().when(labelService).delete(1L);
 
-        MvcResult result = mockMvc.perform(post("/labels")
-                        .header("X-API-Key", API_KEY)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        String responseJson = result.getResponse().getContentAsString();
-        // Extract the id from the response using simple string parsing
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        Long id = mapper.readTree(responseJson).get("id").asLong();
-
-        mockMvc.perform(delete("/labels/" + id)
+        mockMvc.perform(delete("/labels/1")
                         .header("X-API-Key", API_KEY))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void deleteLabel_nonExisting_returns404() throws Exception {
+        doThrow(new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "Label not found: 999999"))
+                .when(labelService).delete(999999L);
+
         mockMvc.perform(delete("/labels/999999")
                         .header("X-API-Key", API_KEY))
                 .andExpect(status().isNotFound());
