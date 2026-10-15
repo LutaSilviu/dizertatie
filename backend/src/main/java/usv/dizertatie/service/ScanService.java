@@ -9,12 +9,17 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import usv.dizertatie.ai.AiAnalysisService;
+import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.ai.AiResponseParser;
+import usv.dizertatie.ai.PromptLoader;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
 import usv.dizertatie.controller.ScanHistoryResponse;
 import usv.dizertatie.controller.ScanSummaryResponse;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.playwright.PageCaptureService;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
 import usv.dizertatie.scoring.SeverityScoringService;
@@ -39,6 +44,10 @@ public class ScanService {
     private final AxeResultParser axeResultParser;
     private final ScanRepository scanRepository;
     private final FindingRepository findingRepository;
+    private final PageCaptureService pageCaptureService;
+    private final AiAnalysisService aiAnalysisService;
+    private final AiResponseParser aiResponseParser;
+    private final PromptLoader promptLoader;
     private final SeverityScoringService severityScoringService;
 
     /**
@@ -118,6 +127,42 @@ public class ScanService {
                 .method("AXE")
                 .axeVersion(AxeService.AXE_VERSION)
                 .browserVersion(browserVersion)
+                .timestamp(LocalDateTime.now())
+                .build();
+        scan = scanRepository.save(scan);
+
+        final Scan savedScan = scan;
+        findings.forEach(f -> f.setScan(savedScan));
+        findingRepository.saveAll(findings);
+
+        return savedScan;
+    }
+
+    /**
+     * Runs an AI accessibility scan for the given URL using the specified model:
+     * <ol>
+     *   <li>Captures the rendered HTML via {@link PageCaptureService}</li>
+     *   <li>Sends HTML to the AI model via {@link AiAnalysisService}</li>
+     *   <li>Parses the raw JSON response into {@link Finding} entities</li>
+     *   <li>Persists a {@link Scan} and all findings</li>
+     * </ol>
+     *
+     * @param url   the URL to scan
+     * @param model the AI model to use
+     * @return the persisted {@link Scan} entity
+     */
+    @Transactional
+    public Scan runAiScan(String url, AiModel model) {
+        String html = pageCaptureService.captureHtml(url);
+        String rawJson = aiAnalysisService.analyze(html, model);
+        List<Finding> findings = aiResponseParser.parse(rawJson);
+
+        Scan scan = Scan.builder()
+                .url(url)
+                .method("AI")
+                .modelId(model.getModelId())
+                .promptVersion(promptLoader.getVersion())
+                .rawAiResponse(rawJson)
                 .timestamp(LocalDateTime.now())
                 .build();
         scan = scanRepository.save(scan);
