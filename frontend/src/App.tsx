@@ -3,6 +3,7 @@ import NavShell from './layout/NavShell'
 import AnalyzerPage from './analyzer/AnalyzerPage'
 import BenchmarkPage from './benchmark/BenchmarkPage'
 import SettingsPage from './settings/SettingsPage'
+import HistoryPage from './history/HistoryPage'
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <Route path="/analyzer" element={<AnalyzerPage />} />
           <Route path="/benchmark" element={<BenchmarkPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/history" element={<HistoryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
