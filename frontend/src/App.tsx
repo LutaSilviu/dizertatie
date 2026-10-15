@@ -12,6 +12,7 @@ function App() {
           <Route index element={<Navigate to="/analyzer" replace />} />
           <Route path="/analyzer" element={<AnalyzerPage />} />
           <Route path="/benchmark" element={<BenchmarkPage />} />
+          <Route path="/benchmark/:runId" element={<BenchmarkPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>
