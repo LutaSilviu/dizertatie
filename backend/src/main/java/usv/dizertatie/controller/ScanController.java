@@ -17,6 +17,13 @@ public class ScanController {
 
     private final ScanService scanService;
 
+    @GetMapping
+    public ScanHistoryResponse getScans(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return scanService.findAll(page, size);
+    }
+
     @PostMapping
     public ResponseEntity<ScanResponse> createScan(@RequestBody ScanRequest request) {
         Scan scan;

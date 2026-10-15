@@ -9,4 +9,6 @@ import java.util.List;
 public interface FindingRepository extends JpaRepository<Finding, Long> {
 
     List<Finding> findByScan(Scan scan);
+
+    List<Finding> findByScanId(Long scanId);
 }
