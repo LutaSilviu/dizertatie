@@ -15,7 +15,7 @@ The W3C Web Accessibility Initiative (WAI) publishes a set of intentionally inac
 | https://www.w3.org/WAI/demos/bad/before/home.html | BAD – inaccessible home page | 1.1.1, 1.4.3, 1.3.1, 4.1.2, 2.4.1 |
 | https://www.w3.org/WAI/demos/bad/after/home.html | BAD – accessible home page (negative example) | 1.1.1 (none – alt text present) |
 | https://www.w3.org/WAI/demos/bad/before/survey.html | BAD – inaccessible survey/form page | 2.4.6, 1.3.1, 4.1.2, 1.4.3 |
-| https://www.w3.org/WAI/demos/bad/before/tickets.html | BAD – inaccessible ticket-booking page | 2.4.6, 1.1.1, 1.3.1, 2.1.1 |
+| https://www.w3.org/WAI/demos/bad/before/ticket.html | BAD – inaccessible ticket-booking page | 2.4.6, 1.1.1, 1.3.1, 2.1.1 |
 | https://www.w3.org/WAI/demos/bad/before/news.html | BAD – inaccessible news page | 1.3.3, 1.4.3, 4.1.2, 2.4.1, 1.1.1 |
 
 **License:** [W3C Document License](https://www.w3.org/Consortium/Legal/2015/doc-license)
@@ -45,7 +45,7 @@ are original work added by this project.
 
 | Field | Value |
 |-------|-------|
-| `annotator` | `DatasetSeeder` |
+| `annotator` | `w3c-bad-demo` |
 | `confidence` | `0.9` |
 | Total labels seeded | 22 |
 

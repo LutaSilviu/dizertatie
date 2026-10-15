@@ -3,6 +3,8 @@ package usv.dizertatie.domain;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "ground_truth_labels")
 @Data
@@ -31,4 +33,6 @@ public class GroundTruthLabel {
     private String verifiedBy;
 
     private Double confidence;
+
+    private LocalDateTime createdAt;
 }

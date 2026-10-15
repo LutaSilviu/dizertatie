@@ -6,6 +6,9 @@ import usv.dizertatie.domain.Scan;
 
 import java.util.List;
 
+/**
+ * Serializes a {@link Scan} and its {@link Finding} list to CSV format.
+ */
 @Component
 public class CsvSerializer {
 

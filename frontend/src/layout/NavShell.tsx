@@ -5,6 +5,7 @@ import styles from './NavShell.module.css'
 const navLinks = [
   { to: '/analyzer', label: 'Analyzer' },
   { to: '/benchmark', label: 'Benchmark' },
+  { to: '/history', label: 'History' },
   { to: '/settings', label: 'Settings' },
 ]
 

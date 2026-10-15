@@ -1,6 +1,7 @@
 package usv.dizertatie.controller;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import usv.dizertatie.scoring.ConformanceScores;
 
 import java.time.Instant;
 import java.util.List;
@@ -15,6 +16,10 @@ public record ScanResponse(
         String method,
         @Schema(description = "Timestamp when the scan was completed (ISO-8601 UTC)")
         Instant timestamp,
+        @Schema(description = "Aggregate severity score (0–100, higher is better)", example = "76.3")
+        double severityScore,
+        @Schema(description = "WCAG conformance scores broken down by level")
+        ConformanceScores conformanceScores,
         @Schema(description = "List of accessibility findings discovered during the scan")
         List<FindingResponse> findings
 ) {

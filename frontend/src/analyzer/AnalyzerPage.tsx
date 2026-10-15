@@ -1,8 +1,10 @@
+import AnalyzerForm from './AnalyzerForm'
+
 function AnalyzerPage() {
   return (
-    <div>
-      <h1>Analyzer</h1>
-      <p>Analyzer page — implementation coming soon.</p>
+    <div style={{ padding: '1.5rem' }}>
+      <h1 style={{ marginTop: 0, marginBottom: '1.5rem' }}>Analyze a Website</h1>
+      <AnalyzerForm />
     </div>
   )
 }

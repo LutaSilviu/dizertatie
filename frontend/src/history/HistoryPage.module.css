@@ -1,0 +1,141 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+  color: #1a202c;
+}
+
+.status {
+  color: #718096;
+  margin: 0;
+}
+
+.errorMsg {
+  color: #c53030;
+  margin: 0;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  padding: 0.65rem 0.9rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table th {
+  background-color: #f7fafc;
+  font-weight: 600;
+  color: #4a5568;
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background-color: #f7fafc;
+}
+
+.table a {
+  color: #2b6cb0;
+  text-decoration: none;
+}
+
+.table a:hover {
+  text-decoration: underline;
+}
+
+.urlCell {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pageBtn {
+  padding: 0.4rem 1rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  background-color: #fff;
+  color: #2d3748;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background-color: #edf2f7;
+}
+
+.pageBtn:disabled {
+  color: #a0aec0;
+  cursor: not-allowed;
+}
+
+.pageInfo {
+  font-size: 0.875rem;
+  color: #718096;
+}
+
+@media (prefers-color-scheme: dark) {
+  .heading {
+    color: #e2e8f0;
+  }
+
+  .tableWrapper {
+    border-color: #2d3748;
+  }
+
+  .table th {
+    background-color: #2d3748;
+    color: #a0aec0;
+  }
+
+  .table th,
+  .table td {
+    border-bottom-color: #2d3748;
+  }
+
+  .table tbody tr:hover {
+    background-color: #2d3748;
+  }
+
+  .table a {
+    color: #63b3ed;
+  }
+
+  .pageBtn {
+    background-color: #2d3748;
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
+
+  .pageBtn:hover:not(:disabled) {
+    background-color: #4a5568;
+  }
+}
