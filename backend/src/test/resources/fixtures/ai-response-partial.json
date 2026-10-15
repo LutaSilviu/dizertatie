@@ -1,0 +1,20 @@
+{
+  "findings": [
+    {
+      "wcagCriterion": "1.3.1",
+      "wcagLevel": "A",
+      "severity": "minor",
+      "elementSelector": "div.sidebar",
+      "description": "Information, structure, and relationships conveyed through presentation must be programmatically determinable"
+    },
+    {
+      "wcagCriterion": "2.1.1",
+      "wcagLevel": "A",
+      "severity": "serious",
+      "elementSelector": "button.custom",
+      "description": "All functionality must be operable through a keyboard interface",
+      "suggestion": "Ensure keyboard focus is visible and all interactive elements are reachable",
+      "confidence": null
+    }
+  ]
+}
