@@ -198,6 +198,68 @@ class ScanControllerTest {
     }
 
     @Test
+    void postScans_combinedMethod_withValidApiKey_returns200WithId() throws Exception {
+        Scan scan = Scan.builder()
+                .id(99L)
+                .url("https://example.com")
+                .method("COMBINED")
+                .axeVersion("4.9.0")
+                .modelId("gpt-4o-mini")
+                .promptVersion("v1")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        when(scanService.runCombinedScan(eq("https://example.com"), eq(AiModel.GPT4O_MINI))).thenReturn(scan);
+
+        mockMvc.perform(post("/scans")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "url": "https://example.com", "method": "COMBINED" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(99))
+                .andExpect(jsonPath("$.method").value("COMBINED"));
+    }
+
+    @Test
+    void postScans_combinedMethod_withGPT4O_withValidApiKey_returns200WithId() throws Exception {
+        Scan scan = Scan.builder()
+                .id(101L)
+                .url("https://example.com")
+                .method("COMBINED")
+                .axeVersion("4.9.0")
+                .modelId("gpt-4o")
+                .promptVersion("v1")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        when(scanService.runCombinedScan(eq("https://example.com"), eq(AiModel.GPT4O))).thenReturn(scan);
+
+        mockMvc.perform(post("/scans")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "url": "https://example.com", "method": "COMBINED", "model": "GPT4O" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(101))
+                .andExpect(jsonPath("$.method").value("COMBINED"));
+    }
+
+    @Test
+    void postScans_combinedMethod_withoutApiKey_returns401() throws Exception {
+        mockMvc.perform(post("/scans")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "url": "https://example.com", "method": "COMBINED" }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void postScans_aiMethod_withGPT4O_model_withValidApiKey_returns200() throws Exception {
         Scan scan = Scan.builder()
                 .id(77L)

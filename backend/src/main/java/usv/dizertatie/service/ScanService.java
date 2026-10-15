@@ -49,6 +49,7 @@ public class ScanService {
     private final AiResponseParser aiResponseParser;
     private final PromptLoader promptLoader;
     private final SeverityScoringService severityScoringService;
+    private final FindingMergeService findingMergeService;
 
     /**
      * Returns a paginated list of all scans ordered by timestamp descending.
@@ -170,6 +171,69 @@ public class ScanService {
         final Scan savedScan = scan;
         findings.forEach(f -> f.setScan(savedScan));
         findingRepository.saveAll(findings);
+
+        return savedScan;
+    }
+
+    /**
+     * Runs a combined Axe + AI accessibility scan for the given URL using a single browser session:
+     * <ol>
+     *   <li>Launches a headless browser and navigates to the URL</li>
+     *   <li>Captures the page HTML via Playwright (same session)</li>
+     *   <li>Runs axe-core on the page to get violations</li>
+     *   <li>Sends HTML to the AI model for analysis</li>
+     *   <li>Merges both result sets via {@link FindingMergeService}</li>
+     *   <li>Persists a {@link Scan} with method="COMBINED" and all merged findings</li>
+     * </ol>
+     *
+     * @param url   the URL to scan
+     * @param model the AI model to use for the AI pass
+     * @return the persisted {@link Scan} entity
+     */
+    @Transactional
+    public Scan runCombinedScan(String url, AiModel model) {
+        String violationsJson;
+        String html;
+        String browserVersion;
+
+        Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+        Page page = null;
+        try {
+            page = browser.newPage();
+            page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+
+            browserVersion = browser.browserType().name() + "/" + browser.version();
+            html = page.content();
+            violationsJson = axeService.run(page);
+        } finally {
+            if (page != null) {
+                page.close();
+            }
+            browser.close();
+        }
+
+        List<Finding> axeFindings = axeResultParser.parse(violationsJson);
+
+        String rawJson = aiAnalysisService.analyze(html, model);
+        List<Finding> aiFindings = aiResponseParser.parse(rawJson);
+
+        List<Finding> mergedFindings = findingMergeService.merge(axeFindings, aiFindings);
+
+        Scan scan = Scan.builder()
+                .url(url)
+                .method("COMBINED")
+                .axeVersion(AxeService.AXE_VERSION)
+                .browserVersion(browserVersion)
+                .modelId(model.getModelId())
+                .promptVersion(promptLoader.getVersion())
+                .rawAiResponse(rawJson)
+                .timestamp(LocalDateTime.now())
+                .build();
+        scan = scanRepository.save(scan);
+
+        final Scan savedScan = scan;
+        mergedFindings.forEach(f -> f.setScan(savedScan));
+        findingRepository.saveAll(mergedFindings);
 
         return savedScan;
     }
