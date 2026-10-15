@@ -88,17 +88,18 @@ public class BenchmarkRunnerService {
                 .orElseThrow(() -> new IllegalArgumentException("BenchmarkRun not found: " + runId));
         run.setStatus("RUNNING");
         run = benchmarkRunRepository.save(run);
+        final BenchmarkRun savedRun = run;
 
         int failedPages = 0;
 
         for (String url : urls) {
-            List<BenchmarkPage> pages = benchmarkPageRepository.findByRunId(run.getId());
+            List<BenchmarkPage> pages = benchmarkPageRepository.findByRunId(savedRun.getId());
             BenchmarkPage page = pages.stream()
                     .filter(p -> url.equals(p.getUrl()) && "PENDING".equals(p.getStatus()))
                     .findFirst()
                     .orElseGet(() -> {
                         BenchmarkPage newPage = BenchmarkPage.builder()
-                                .run(run)
+                                .run(savedRun)
                                 .url(url)
                                 .status("PENDING")
                                 .build();
