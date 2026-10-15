@@ -11,8 +11,8 @@ import java.util.Objects;
  * Merges findings from Axe and AI scans, de-duplicating overlapping issues.
  *
  * <p>Two findings are considered duplicates when they share the same WCAG criterion
- * and the same element selector. In that case the AI finding is preferred (it typically
- * carries a richer description and suggestion), and its {@code sourceMethod} is set to
+ * and the same element selector. In that case the Axe finding is preferred (it carries
+ * a structured selector and level), and its {@code sourceMethod} is set to
  * {@code "COMBINED"} to indicate that both tools flagged the same issue.
  */
 @Service
@@ -23,62 +23,59 @@ public class FindingMergeService {
      *
      * <p>Unique Axe findings are included as-is (sourceMethod = "AXE").
      * Unique AI findings are included as-is (sourceMethod = "AI").
-     * When both tools flag the same criterion + selector, the AI finding is kept
+     * When both tools flag the same criterion + selector, the Axe finding is kept
      * with sourceMethod set to "COMBINED".
      *
      * @param axeFindings findings from the Axe scan
      * @param aiFindings  findings from the AI scan
-     * @return merged list of findings, none with a scan set (caller must set scan before persisting)
+     * @return merged list of findings
      */
     public List<Finding> merge(List<Finding> axeFindings, List<Finding> aiFindings) {
         List<Finding> result = new ArrayList<>();
 
-        for (Finding ai : aiFindings) {
-            boolean matchedByAxe = axeFindings.stream().anyMatch(axe -> isSameIssue(axe, ai));
-            if (matchedByAxe) {
-                // Prefer the AI finding but mark as COMBINED
-                Finding combined = copyWithSourceMethod(ai, "COMBINED");
-                result.add(combined);
-            } else {
-                result.add(ai);
+        // Track which AI findings have been matched
+        boolean[] aiMatched = new boolean[aiFindings.size()];
+
+        for (Finding axeFinding : axeFindings) {
+            boolean matched = false;
+            for (int i = 0; i < aiFindings.size(); i++) {
+                if (!aiMatched[i] && isSameFinding(axeFinding, aiFindings.get(i))) {
+                    // Duplicate: prefer Axe data but set sourceMethod=COMBINED
+                    Finding merged = Finding.builder()
+                            .scan(axeFinding.getScan())
+                            .sourceMethod("COMBINED")
+                            .wcagCriterion(axeFinding.getWcagCriterion())
+                            .wcagLevel(axeFinding.getWcagLevel())
+                            .severity(axeFinding.getSeverity())
+                            .elementSelector(axeFinding.getElementSelector())
+                            .description(axeFinding.getDescription())
+                            .suggestion(axeFinding.getSuggestion())
+                            .confidence(axeFinding.getConfidence())
+                            .build();
+                    result.add(merged);
+                    aiMatched[i] = true;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                // Unique to Axe: keep sourceMethod=AXE
+                result.add(axeFinding);
             }
         }
 
-        for (Finding axe : axeFindings) {
-            boolean alreadyCovered = aiFindings.stream().anyMatch(ai -> isSameIssue(axe, ai));
-            if (!alreadyCovered) {
-                result.add(axe);
+        // Add remaining unmatched AI findings
+        for (int i = 0; i < aiFindings.size(); i++) {
+            if (!aiMatched[i]) {
+                result.add(aiFindings.get(i));
             }
         }
 
         return result;
     }
 
-    private boolean isSameIssue(Finding a, Finding b) {
-        return Objects.equals(normaliseCriterion(a.getWcagCriterion()),
-                              normaliseCriterion(b.getWcagCriterion()))
-                && Objects.equals(normaliseSelector(a.getElementSelector()),
-                                  normaliseSelector(b.getElementSelector()));
-    }
-
-    private String normaliseCriterion(String s) {
-        return s == null ? "" : s.trim().toLowerCase();
-    }
-
-    private String normaliseSelector(String s) {
-        return s == null ? "" : s.trim();
-    }
-
-    private Finding copyWithSourceMethod(Finding original, String sourceMethod) {
-        return Finding.builder()
-                .sourceMethod(sourceMethod)
-                .wcagCriterion(original.getWcagCriterion())
-                .wcagLevel(original.getWcagLevel())
-                .severity(original.getSeverity())
-                .elementSelector(original.getElementSelector())
-                .description(original.getDescription())
-                .suggestion(original.getSuggestion())
-                .confidence(original.getConfidence())
-                .build();
+    private boolean isSameFinding(Finding a, Finding b) {
+        return Objects.equals(a.getWcagCriterion(), b.getWcagCriterion())
+                && Objects.equals(a.getElementSelector(), b.getElementSelector());
     }
 }
