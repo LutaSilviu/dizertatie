@@ -7,7 +7,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.ai.chat.client.ChatClient;
 
+import java.util.function.Supplier;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -20,6 +23,9 @@ class AiAnalysisServiceTest {
 
     @Mock
     private PromptLoader promptLoader;
+
+    @Mock
+    private AiResponseCache aiResponseCache;
 
     @InjectMocks
     private AiAnalysisService aiAnalysisService;
@@ -36,12 +42,21 @@ class AiAnalysisServiceTest {
         ChatClient.CallResponseSpec mockCallSpec = mock(ChatClient.CallResponseSpec.class);
 
         when(promptLoader.getPrompt()).thenReturn(systemPrompt);
+        when(promptLoader.getVersion()).thenReturn("v1");
         when(openAiModelSelector.getClient(AiModel.GPT4O)).thenReturn(mockChatClient);
         when(mockChatClient.prompt()).thenReturn(mockSpec);
         when(mockSpec.system(anyString())).thenReturn(mockSpec);
         when(mockSpec.user(anyString())).thenReturn(mockSpec);
         when(mockSpec.call()).thenReturn(mockCallSpec);
         when(mockCallSpec.content()).thenReturn(expectedResponse);
+
+        // Make the cache mock actually invoke the supplier so the ChatClient path is exercised
+        when(aiResponseCache.getOrCompute(anyString(), any(AiModel.class), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    @SuppressWarnings("unchecked")
+                    Supplier<String> supplier = invocation.getArgument(3);
+                    return supplier.get();
+                });
 
         // Act
         String result = aiAnalysisService.analyze(html, AiModel.GPT4O);
