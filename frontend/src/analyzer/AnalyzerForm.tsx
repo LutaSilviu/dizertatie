@@ -1,10 +1,9 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../settings/apiClient'
-import { useSettings } from '../settings/useSettings'
+import { useSettings, type AiModel } from '../settings/useSettings'
 
 type ScanMethod = 'AXE' | 'AI' | 'COMBINED'
-type GptModel = 'gpt-4o-mini' | 'gpt-4o'
 
 interface ScanResponse {
   scanId: string
@@ -16,7 +15,7 @@ const METHOD_LABELS: Record<ScanMethod, string> = {
   COMBINED: 'Combined',
 }
 
-const MODELS: { value: GptModel; label: string }[] = [
+const MODELS: { value: AiModel; label: string }[] = [
   { value: 'gpt-4o-mini', label: 'GPT-4o-mini' },
   { value: 'gpt-4o', label: 'GPT-4o' },
 ]
@@ -32,13 +31,11 @@ function isValidUrl(value: string): boolean {
 
 function AnalyzerForm() {
   const navigate = useNavigate()
-  const { model: defaultModel } = useSettings()
+  const { aiModel: defaultModel } = useSettings()
 
   const [url, setUrl] = useState('')
   const [method, setMethod] = useState<ScanMethod>('AXE')
-  const [model, setModel] = useState<GptModel>(
-    (defaultModel as GptModel) ?? 'gpt-4o-mini'
-  )
+  const [model, setModel] = useState<AiModel>(defaultModel)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [urlError, setUrlError] = useState<string | null>(null)
@@ -64,7 +61,7 @@ function AnalyzerForm() {
 
     setLoading(true)
     try {
-      const body: { url: string; method: ScanMethod; model?: GptModel } = {
+      const body: { url: string; method: ScanMethod; model?: AiModel } = {
         url,
         method,
       }
@@ -72,11 +69,23 @@ function AnalyzerForm() {
         body.model = model
       }
 
-      const data = await apiFetch<ScanResponse>('/api/scans', {
+      const response = await apiFetch('/api/scans', {
         method: 'POST',
         body: JSON.stringify(body),
       })
 
+      if (!response.ok) {
+        let message = `Request failed: ${response.status} ${response.statusText}`
+        try {
+          const errBody = await response.json() as { error?: string; message?: string }
+          message = errBody.error ?? errBody.message ?? message
+        } catch {
+          // ignore parse errors
+        }
+        throw new Error(message)
+      }
+
+      const data = await response.json() as ScanResponse
       navigate(`/report/${data.scanId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
@@ -141,7 +150,7 @@ function AnalyzerForm() {
           <select
             id="analyzer-model"
             value={model}
-            onChange={(e) => setModel(e.target.value as GptModel)}
+            onChange={(e) => setModel(e.target.value as AiModel)}
             disabled={loading}
             style={styles.select}
           >

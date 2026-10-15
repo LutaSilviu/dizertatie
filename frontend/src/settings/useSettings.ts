@@ -1,35 +1,43 @@
-const STORAGE_KEY_API_KEY = 'apiKey'
-const STORAGE_KEY_MODEL = 'model'
-const DEFAULT_MODEL = 'gpt-4o-mini'
+import { useState } from 'react'
+
+const API_KEY_STORAGE_KEY = 'apiKey'
+const AI_MODEL_STORAGE_KEY = 'aiModel'
+const DEFAULT_AI_MODEL = 'gpt-4o-mini'
+
+export type AiModel = 'gpt-4o' | 'gpt-4o-mini'
 
 export interface Settings {
   apiKey: string
-  model: string
+  aiModel: AiModel
   setApiKey: (key: string) => void
-  setModel: (model: string) => void
+  setAiModel: (model: AiModel) => void
 }
 
-export function getApiKey(): string {
-  return sessionStorage.getItem(STORAGE_KEY_API_KEY) ?? ''
+function readApiKey(): string {
+  return sessionStorage.getItem(API_KEY_STORAGE_KEY) ?? ''
 }
 
-export function getModel(): string {
-  return sessionStorage.getItem(STORAGE_KEY_MODEL) ?? DEFAULT_MODEL
-}
-
-export function setApiKey(key: string): void {
-  sessionStorage.setItem(STORAGE_KEY_API_KEY, key)
-}
-
-export function setModel(model: string): void {
-  sessionStorage.setItem(STORAGE_KEY_MODEL, model)
+function readAiModel(): AiModel {
+  const stored = sessionStorage.getItem(AI_MODEL_STORAGE_KEY)
+  if (stored === 'gpt-4o' || stored === 'gpt-4o-mini') {
+    return stored
+  }
+  return DEFAULT_AI_MODEL
 }
 
 export function useSettings(): Settings {
-  return {
-    apiKey: getApiKey(),
-    model: getModel(),
-    setApiKey,
-    setModel,
+  const [apiKey, setApiKeyState] = useState<string>(readApiKey)
+  const [aiModel, setAiModelState] = useState<AiModel>(readAiModel)
+
+  const setApiKey = (key: string) => {
+    sessionStorage.setItem(API_KEY_STORAGE_KEY, key)
+    setApiKeyState(key)
   }
+
+  const setAiModel = (model: AiModel) => {
+    sessionStorage.setItem(AI_MODEL_STORAGE_KEY, model)
+    setAiModelState(model)
+  }
+
+  return { apiKey, aiModel, setApiKey, setAiModel }
 }

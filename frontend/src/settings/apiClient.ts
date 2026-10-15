@@ -1,35 +1,17 @@
-import { getApiKey } from './useSettings'
+const API_KEY_STORAGE_KEY = 'apiKey'
 
-export interface FetchOptions extends RequestInit {
-  apiKey?: string
+function getApiKey(): string {
+  return sessionStorage.getItem(API_KEY_STORAGE_KEY) ?? ''
 }
 
-export async function apiFetch<T = unknown>(
-  path: string,
-  options: FetchOptions = {}
-): Promise<T> {
-  const { apiKey, ...rest } = options
-  const key = apiKey ?? getApiKey()
-
-  const response = await fetch(path, {
-    ...rest,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(key ? { 'X-API-Key': key } : {}),
-      ...(rest.headers ?? {}),
-    },
-  })
-
-  if (!response.ok) {
-    let message = `Request failed: ${response.status} ${response.statusText}`
-    try {
-      const body = await response.json() as { error?: string; message?: string }
-      message = body.error ?? body.message ?? message
-    } catch {
-      // ignore parse errors
-    }
-    throw new Error(message)
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const key = getApiKey()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init.headers as Record<string, string> | undefined),
   }
-
-  return response.json() as Promise<T>
+  if (key) {
+    headers['X-API-Key'] = key
+  }
+  return fetch(path, { ...init, headers })
 }
