@@ -15,6 +15,7 @@ import usv.dizertatie.repository.GroundTruthLabelRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -94,13 +95,14 @@ public class BenchmarkRunnerService {
         int failedPages = 0;
 
         for (String url : urls) {
+            final BenchmarkRun currentRun = run;
             List<BenchmarkPage> pages = benchmarkPageRepository.findByRunId(savedRun.getId());
             BenchmarkPage page = pages.stream()
                     .filter(p -> url.equals(p.getUrl()) && "PENDING".equals(p.getStatus()))
                     .findFirst()
                     .orElseGet(() -> {
                         BenchmarkPage newPage = BenchmarkPage.builder()
-                                .run(savedRun)
+                                .run(currentRun)
                                 .url(url)
                                 .status("PENDING")
                                 .build();
@@ -155,5 +157,13 @@ public class BenchmarkRunnerService {
             run.setStatus("COMPLETE");
         }
         benchmarkRunRepository.save(run);
+    }
+
+    public Optional<BenchmarkRun> findById(Long id) {
+        return benchmarkRunRepository.findById(id);
+    }
+
+    public List<BenchmarkRun> findAllNewestFirst() {
+        return benchmarkRunRepository.findAllByOrderByCreatedAtDesc();
     }
 }
