@@ -15,6 +15,8 @@ import usv.dizertatie.service.ScanService;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import usv.dizertatie.ai.AiModel;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -119,5 +121,53 @@ class ScanControllerTest {
                                 { "url": "https://example.com", "method": "AXE" }
                                 """))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void postScans_aiMethod_withValidApiKey_returns200WithId() throws Exception {
+        Scan scan = Scan.builder()
+                .id(55L)
+                .url("https://example.com")
+                .method("AI")
+                .modelId("gpt-4o-mini")
+                .promptVersion("v1")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        when(scanService.runAiScan(eq("https://example.com"), eq(AiModel.GPT4O_MINI))).thenReturn(scan);
+
+        mockMvc.perform(post("/scans")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "url": "https://example.com", "method": "AI" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(55));
+    }
+
+    @Test
+    void postScans_aiMethod_withGPT4O_model_withValidApiKey_returns200() throws Exception {
+        Scan scan = Scan.builder()
+                .id(77L)
+                .url("https://example.com")
+                .method("AI")
+                .modelId("gpt-4o")
+                .promptVersion("v1")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        when(scanService.runAiScan(eq("https://example.com"), eq(AiModel.GPT4O))).thenReturn(scan);
+
+        mockMvc.perform(post("/scans")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "url": "https://example.com", "method": "AI", "model": "GPT4O" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(77));
     }
 }
