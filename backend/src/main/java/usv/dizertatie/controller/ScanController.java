@@ -41,6 +41,9 @@ public class ScanController {
         } else if ("AI".equalsIgnoreCase(request.method())) {
             AiModel model = parseModel(request.model());
             scan = scanService.runAiScan(request.url(), model);
+        } else if ("COMBINED".equalsIgnoreCase(request.method())) {
+            AiModel model = parseModel(request.model());
+            scan = scanService.runCombinedScan(request.url(), model);
         } else {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST,

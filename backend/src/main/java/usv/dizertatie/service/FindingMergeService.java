@@ -7,9 +7,29 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Merges findings from Axe and AI scans, de-duplicating overlapping issues.
+ *
+ * <p>Two findings are considered duplicates when they share the same WCAG criterion
+ * and the same element selector. In that case the Axe finding is preferred (it carries
+ * a structured selector and level), and its {@code sourceMethod} is set to
+ * {@code "COMBINED"} to indicate that both tools flagged the same issue.
+ */
 @Service
 public class FindingMergeService {
 
+    /**
+     * Merges Axe and AI findings, de-duplicating by (wcagCriterion, elementSelector).
+     *
+     * <p>Unique Axe findings are included as-is (sourceMethod = "AXE").
+     * Unique AI findings are included as-is (sourceMethod = "AI").
+     * When both tools flag the same criterion + selector, the Axe finding is kept
+     * with sourceMethod set to "COMBINED".
+     *
+     * @param axeFindings findings from the Axe scan
+     * @param aiFindings  findings from the AI scan
+     * @return merged list of findings
+     */
     public List<Finding> merge(List<Finding> axeFindings, List<Finding> aiFindings) {
         List<Finding> result = new ArrayList<>();
 
