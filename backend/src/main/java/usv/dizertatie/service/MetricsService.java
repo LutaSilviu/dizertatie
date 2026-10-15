@@ -11,134 +11,130 @@ import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.GroundTruthLabelRepository;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
- * Computes precision / recall / F1 metrics for a completed
- * {@link BenchmarkRun} by comparing each scan's findings against the
- * ground-truth labels that were annotated for the same URL.
+ * Computes precision, recall and F1 for each scan method (AXE / AI / COMBINED) by comparing
+ * the findings recorded in a {@link BenchmarkRun} against the seeded ground-truth labels.
  *
- * <p>A finding is counted as a <em>true positive</em> when a ground-truth label
- * exists for the same URL and WCAG criterion; otherwise it is a
- * <em>false positive</em>.  Ground-truth labels for which no finding was
- * produced count as <em>false negatives</em>.
- *
- * <p>Metrics are computed globally (all pages × all criteria) and per
- * WCAG principle category (first word of the criterion name, e.g. "1.1.1" → "1").
+ * <p>A predicted finding <em>matches</em> a ground-truth label when both share the same
+ * {@code wcagCriterion} AND {@code elementSelector} for the same page URL.
  */
 @Service
 @RequiredArgsConstructor
 public class MetricsService {
 
-    /** Maximum number of FP/FN examples to include in the response. */
-    static final int MAX_EXAMPLES = 5;
+    static final String AXE      = "AXE";
+    static final String AI       = "AI";
+    static final String COMBINED = "COMBINED";
 
-    /** Methods recognised by the benchmark runner. */
-    static final List<String> METHODS = List.of("AXE", "AI", "COMBINED");
+    static final List<String> METHODS = List.of(AXE, AI, COMBINED);
+
+    static final int MAX_EXAMPLES = 10;
 
     private final BenchmarkPageRepository benchmarkPageRepository;
-    private final FindingRepository findingRepository;
+    private final FindingRepository       findingRepository;
     private final GroundTruthLabelRepository groundTruthLabelRepository;
 
     /**
-     * Computes {@link BenchmarkMetrics} for the given run.
+     * Computes a {@link BenchmarkMetrics} for the given completed run.
      *
-     * @param run a <em>COMPLETE</em> benchmark run
-     * @return computed metrics
+     * @param run the benchmark run to evaluate
+     * @return aggregated metrics (overall + per WCAG category + FP/FN examples)
      */
     public BenchmarkMetrics compute(BenchmarkRun run) {
         List<BenchmarkPage> pages = benchmarkPageRepository.findByRunId(run.getId());
 
-        // Accumulators: method → category → Counts
-        Map<String, Map<String, Counts>> acc = new HashMap<>();
+        // Counters: method -> category -> {tp, fp, fn}
+        Map<String, Map<String, int[]>> catCounters = new LinkedHashMap<>();
+        Map<String, int[]> overallCounters = new LinkedHashMap<>();
         for (String m : METHODS) {
-            acc.put(m, new HashMap<>());
+            overallCounters.put(m, new int[3]); // [tp, fp, fn]
+            catCounters.put(m, new LinkedHashMap<>());
         }
 
         List<FpFnExample> fpExamples = new ArrayList<>();
         List<FpFnExample> fnExamples = new ArrayList<>();
 
         for (BenchmarkPage page : pages) {
-            if (!"DONE".equals(page.getStatus())) continue;
-
             String url = page.getUrl();
             List<GroundTruthLabel> labels = groundTruthLabelRepository.findByUrl(url);
-            Set<String> gtCriteria = labels.stream()
-                    .map(GroundTruthLabel::getWcagCriterion)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
 
-            // Determine scan ids per method
-            Map<String, Long> scanIds = new LinkedHashMap<>();
-            if (page.getAxeScanId() != null)      scanIds.put("AXE",      page.getAxeScanId());
-            if (page.getAiScanId() != null)        scanIds.put("AI",       page.getAiScanId());
-            if (page.getCombinedScanId() != null)  scanIds.put("COMBINED", page.getCombinedScanId());
+            // Build a lookup key set from labels: "wcagCriterion|elementSelector"
+            Set<String> labelKeys = new HashSet<>();
+            for (GroundTruthLabel l : labels) {
+                labelKeys.add(labelKey(l.getWcagCriterion(), l.getElementSelector()));
+            }
 
-            for (Map.Entry<String, Long> entry : scanIds.entrySet()) {
-                String method = entry.getKey();
-                List<Finding> findings = findingRepository.findByScanId(entry.getValue());
+            // Load findings for each method
+            Map<String, List<Finding>> methodFindings = new LinkedHashMap<>();
+            methodFindings.put(AXE,      loadFindings(page.getAxeScanId()));
+            methodFindings.put(AI,       loadFindings(page.getAiScanId()));
+            methodFindings.put(COMBINED, loadFindings(page.getCombinedScanId()));
 
-                Set<String> foundCriteria = new HashSet<>();
+            for (String method : METHODS) {
+                List<Finding> findings = methodFindings.get(method);
+
+                Set<String> findingKeys = new HashSet<>();
                 for (Finding f : findings) {
-                    String crit = f.getWcagCriterion();
-                    if (crit == null) continue;
-                    foundCriteria.add(crit);
+                    findingKeys.add(labelKey(f.getWcagCriterion(), f.getElementSelector()));
+                }
 
-                    String category = categoryOf(crit);
-                    if (gtCriteria.contains(crit)) {
-                        // TP
-                        acc.get(method).computeIfAbsent("__all__", k -> new Counts()).tp++;
-                        acc.get(method).computeIfAbsent(category,  k -> new Counts()).tp++;
+                // TP + FP from predicted findings
+                for (Finding f : findings) {
+                    String key = labelKey(f.getWcagCriterion(), f.getElementSelector());
+                    String category = wcagCategory(f.getWcagCriterion());
+                    int[] overall = overallCounters.get(method);
+                    int[] catArr  = catCounters.get(method).computeIfAbsent(category, k -> new int[3]);
+
+                    if (labelKeys.contains(key)) {
+                        overall[0]++; // TP
+                        catArr[0]++;
                     } else {
-                        // FP
-                        acc.get(method).computeIfAbsent("__all__", k -> new Counts()).fp++;
-                        acc.get(method).computeIfAbsent(category,  k -> new Counts()).fp++;
+                        overall[1]++; // FP
+                        catArr[1]++;
                         if (fpExamples.size() < MAX_EXAMPLES) {
-                            fpExamples.add(new FpFnExample(method, url, crit,
-                                    f.getElementSelector(), f.getDescription()));
+                            fpExamples.add(new FpFnExample(method, url,
+                                    f.getWcagCriterion(), f.getElementSelector(), f.getDescription()));
                         }
                     }
                 }
 
-                // FN: ground-truth criteria not found by this method
-                for (String crit : gtCriteria) {
-                    if (!foundCriteria.contains(crit)) {
-                        String category = categoryOf(crit);
-                        acc.get(method).computeIfAbsent("__all__", k -> new Counts()).fn++;
-                        acc.get(method).computeIfAbsent(category,  k -> new Counts()).fn++;
+                // FN from labels not covered by findings
+                for (GroundTruthLabel l : labels) {
+                    String key = labelKey(l.getWcagCriterion(), l.getElementSelector());
+                    if (!findingKeys.contains(key)) {
+                        String category = wcagCategory(l.getWcagCriterion());
+                        int[] overall = overallCounters.get(method);
+                        int[] catArr  = catCounters.get(method).computeIfAbsent(category, k -> new int[3]);
+                        overall[2]++; // FN
+                        catArr[2]++;
                         if (fnExamples.size() < MAX_EXAMPLES) {
-                            // Find a matching label for element/description context
-                            GroundTruthLabel lbl = labels.stream()
-                                    .filter(l -> crit.equals(l.getWcagCriterion()))
-                                    .findFirst().orElse(null);
-                            fnExamples.add(new FpFnExample(method, url, crit,
-                                    lbl != null ? lbl.getElementSelector() : null,
-                                    null));
+                            fnExamples.add(new FpFnExample(method, url,
+                                    l.getWcagCriterion(), l.getElementSelector(), null));
                         }
                     }
                 }
             }
         }
 
-        // Build overall per-method metrics
+        // Build overall method metrics
         Map<String, MethodMetrics> methods = new LinkedHashMap<>();
         for (String m : METHODS) {
-            Counts c = acc.get(m).getOrDefault("__all__", new Counts());
-            methods.put(m, MethodMetrics.of(c.tp, c.fp, c.fn));
+            int[] c = overallCounters.get(m);
+            methods.put(m, MethodMetrics.of(c[0], c[1], c[2]));
         }
 
-        // Build per-category per-method metrics
-        Set<String> allCategories = acc.values().stream()
-                .flatMap(map -> map.keySet().stream())
-                .filter(k -> !"__all__".equals(k))
-                .collect(Collectors.toCollection(TreeSet::new));
-
+        // Build per-category metrics
         Map<String, Map<String, MethodMetrics>> byCategory = new LinkedHashMap<>();
+        Set<String> allCategories = new LinkedHashSet<>();
+        for (String m : METHODS) {
+            allCategories.addAll(catCounters.get(m).keySet());
+        }
         for (String cat : allCategories) {
             Map<String, MethodMetrics> catMap = new LinkedHashMap<>();
             for (String m : METHODS) {
-                Counts c = acc.get(m).getOrDefault(cat, new Counts());
-                catMap.put(m, MethodMetrics.of(c.tp, c.fp, c.fn));
+                int[] c = catCounters.get(m).getOrDefault(cat, new int[3]);
+                catMap.put(m, MethodMetrics.of(c[0], c[1], c[2]));
             }
             byCategory.put(cat, catMap);
         }
@@ -164,26 +160,36 @@ public class MetricsService {
         );
     }
 
-    // ---- helpers ----
+    // -------------------------------------------------------------------------
+    // helpers
+    // -------------------------------------------------------------------------
 
-    /**
-     * Maps a WCAG criterion (e.g. "1.1.1") to its principle number ("1").
-     * Unmapped criteria fall into the "Other" category.
-     */
-    private static String categoryOf(String criterion) {
-        if (criterion == null || criterion.isBlank()) return "Other";
-        String first = criterion.split("\\.")[0];
-        return switch (first) {
-            case "1" -> "Perceivable";
-            case "2" -> "Operable";
-            case "3" -> "Understandable";
-            case "4" -> "Robust";
-            default  -> "Other";
-        };
+    private List<Finding> loadFindings(Long scanId) {
+        if (scanId == null) return Collections.emptyList();
+        return findingRepository.findByScanId(scanId);
     }
 
-    /** Mutable TP / FP / FN accumulator. */
-    private static class Counts {
-        int tp, fp, fn;
+    static String labelKey(String wcagCriterion, String elementSelector) {
+        return (wcagCriterion == null ? "" : wcagCriterion)
+                + "|"
+                + (elementSelector == null ? "" : elementSelector);
+    }
+
+    /**
+     * Maps a WCAG criterion to a top-level principle category based on its numeric prefix.
+     * <ul>
+     *   <li>1.x.x → Perceivable</li>
+     *   <li>2.x.x → Operable</li>
+     *   <li>3.x.x → Understandable</li>
+     *   <li>4.x.x → Robust</li>
+     * </ul>
+     */
+    static String wcagCategory(String criterion) {
+        if (criterion == null || criterion.isBlank()) return "Unknown";
+        if (criterion.startsWith("1.")) return "Perceivable";
+        if (criterion.startsWith("2.")) return "Operable";
+        if (criterion.startsWith("3.")) return "Understandable";
+        if (criterion.startsWith("4.")) return "Robust";
+        return "Unknown";
     }
 }

@@ -4,17 +4,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Full benchmark metrics computed over a completed {@link usv.dizertatie.domain.BenchmarkRun}.
+ * Aggregate metrics for a completed {@link usv.dizertatie.domain.BenchmarkRun}.
  *
- * @param runId                  id of the benchmark run
- * @param methods                overall per-method metrics: method-name → {@link MethodMetrics}
- * @param byCategory             per-WCAG-principle per-method metrics:
- *                               category → method-name → {@link MethodMetrics}
- * @param falsePositiveExamples  up to {@code MAX_EXAMPLES} representative false positives
- * @param falseNegativeExamples  up to {@code MAX_EXAMPLES} representative false negatives
- * @param avgCostPerPageUsd      average estimated AI cost per page in USD
- * @param avgLatencyMs           average latency per method in milliseconds:
- *                               method-name → millis (may be null when no pages have data)
+ * <ul>
+ *   <li>{@code runId}          – id of the benchmark run</li>
+ *   <li>{@code methods}        – overall precision/recall/F1 keyed by "AXE", "AI", "COMBINED"</li>
+ *   <li>{@code byCategory}     – same metrics broken down by WCAG category (Perceivable/Operable/
+ *                                Understandable/Robust), then by method</li>
+ *   <li>{@code falsePositiveExamples} – up to {@link MetricsService#MAX_EXAMPLES} false-positive examples</li>
+ *   <li>{@code falseNegativeExamples} – up to {@link MetricsService#MAX_EXAMPLES} false-negative examples</li>
+ *   <li>{@code avgCostPerPageUsd} – average estimated AI cost per page in USD</li>
+ *   <li>{@code avgLatencyMs}   – average latency per method in milliseconds</li>
+ * </ul>
  */
 public record BenchmarkMetrics(
         Long runId,
@@ -24,5 +25,4 @@ public record BenchmarkMetrics(
         List<FpFnExample> falseNegativeExamples,
         Double avgCostPerPageUsd,
         Map<String, Double> avgLatencyMs
-) {
-}
+) {}
