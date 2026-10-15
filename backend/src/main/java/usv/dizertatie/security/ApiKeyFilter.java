@@ -22,7 +22,10 @@ public class ApiKeyFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return HEALTH_PATH.equals(request.getRequestURI());
+        String uri = request.getRequestURI();
+        return HEALTH_PATH.equals(uri)
+                || uri.startsWith("/api-docs")
+                || uri.startsWith("/swagger-ui");
     }
 
     @Override
