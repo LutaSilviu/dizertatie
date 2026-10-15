@@ -1,11 +1,17 @@
 package usv.dizertatie.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.export.CsvSerializer;
+import usv.dizertatie.scoring.ConformanceScoringService;
+import usv.dizertatie.scoring.ConformanceScores;
+import usv.dizertatie.scoring.SeverityScoringService;
 import usv.dizertatie.service.ScanService;
 
 import java.util.List;
@@ -16,6 +22,9 @@ import java.util.List;
 public class ScanController {
 
     private final ScanService scanService;
+    private final SeverityScoringService severityScoringService;
+    private final ConformanceScoringService conformanceScoringService;
+    private final CsvSerializer csvSerializer;
 
     @GetMapping
     public ScanHistoryResponse getScans(
@@ -32,6 +41,9 @@ public class ScanController {
         } else if ("AI".equalsIgnoreCase(request.method())) {
             AiModel model = parseModel(request.model());
             scan = scanService.runAiScan(request.url(), model);
+        } else if ("COMBINED".equalsIgnoreCase(request.method())) {
+            AiModel model = parseModel(request.model());
+            scan = scanService.runCombinedScan(request.url(), model);
         } else {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST,
@@ -65,6 +77,21 @@ public class ScanController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping(value = "/{id}/export.csv", produces = "text/csv")
+    public ResponseEntity<String> exportScanCsv(@PathVariable Long id) {
+        Scan scan = scanService.findById(id);
+        List<Finding> findings = scanService.findingsForScan(scan);
+        String csv = csvSerializer.serialize(scan, findings);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("text/csv"));
+        headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"scan-" + id + ".csv\"");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(csv);
+    }
+
     private ScanResponse toResponse(Scan scan, List<Finding> findings) {
         List<FindingResponse> findingResponses = findings.stream()
                 .map(f -> new FindingResponse(
@@ -81,11 +108,16 @@ public class ScanController {
                 ? scan.getTimestamp().atZone(java.time.ZoneOffset.UTC).toInstant()
                 : null;
 
+        double severityScore = severityScoringService.score(findings);
+        ConformanceScores conformanceScores = conformanceScoringService.score(findings);
+
         return new ScanResponse(
                 scan.getId(),
                 scan.getUrl(),
                 scan.getMethod(),
                 timestamp,
+                severityScore,
+                conformanceScores,
                 findingResponses
         );
     }
