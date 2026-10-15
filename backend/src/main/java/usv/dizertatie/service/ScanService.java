@@ -5,14 +5,19 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.WaitUntilState;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
+import usv.dizertatie.controller.ScanHistoryResponse;
+import usv.dizertatie.controller.ScanResponse;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
+import usv.dizertatie.scoring.SeverityScoringService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,6 +35,39 @@ public class ScanService {
     private final AxeResultParser axeResultParser;
     private final ScanRepository scanRepository;
     private final FindingRepository findingRepository;
+    private final SeverityScoringService severityScoringService;
+
+    /**
+     * Returns a paginated list of all scans ordered by timestamp descending.
+     * Each item includes summary metadata only (no finding details).
+     *
+     * @param page zero-based page index
+     * @param size maximum number of items per page
+     * @return paginated scan history
+     */
+    @Transactional(readOnly = true)
+    public ScanHistoryResponse findAll(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        var scanPage = scanRepository.findAllByOrderByTimestampDesc(pageable);
+
+        List<ScanResponse> content = scanPage.getContent().stream()
+                .map(scan -> {
+                    List<Finding> findings = findingRepository.findByScanId(scan.getId());
+                    double score = severityScoringService.score(findings);
+                    return new ScanResponse(
+                            scan.getId(),
+                            scan.getUrl(),
+                            scan.getMethod(),
+                            scan.getModelId(),
+                            scan.getTimestamp(),
+                            score,
+                            findings.size()
+                    );
+                })
+                .toList();
+
+        return new ScanHistoryResponse(content, page, size, scanPage.getTotalElements());
+    }
 
     /**
      * Runs a full Axe scan for the given URL:
