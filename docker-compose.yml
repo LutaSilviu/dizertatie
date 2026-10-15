@@ -1,34 +1,38 @@
 services:
-
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-accessibility}
-      POSTGRES_USER: ${POSTGRES_USER:-accessibility}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-accessibility}
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-dizertatie}
+      POSTGRES_USER: ${POSTGRES_USER:-dizertatie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-accessibility} -d ${POSTGRES_DB:-accessibility}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dizertatie}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   backend:
-    # image will be added once the backend Docker image is built (ticket 02+)
-    build:
-      context: ./backend
-    environment:
-      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-accessibility}
-      DB_USERNAME: ${POSTGRES_USER:-accessibility}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-accessibility}
-    ports:
-      - "8080:8080"
+    build: ./backend
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-dizertatie}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-dizertatie}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_API_KEY: ${APP_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
 
 volumes:
-  db_data:
+  postgres_data:
