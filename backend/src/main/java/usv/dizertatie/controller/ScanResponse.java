@@ -1,13 +1,13 @@
 package usv.dizertatie.controller;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.List;
 
 public record ScanResponse(
         Long id,
         String url,
         String method,
-        String model,
-        LocalDateTime timestamp,
-        Double severityScore,
-        long findingCount
-) {}
+        Instant timestamp,
+        List<FindingResponse> findings
+) {
+}

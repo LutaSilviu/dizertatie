@@ -12,14 +12,18 @@ import org.springframework.transaction.annotation.Transactional;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
 import usv.dizertatie.controller.ScanHistoryResponse;
-import usv.dizertatie.controller.ScanResponse;
+import usv.dizertatie.controller.ScanSummaryResponse;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
 import usv.dizertatie.scoring.SeverityScoringService;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -50,16 +54,19 @@ public class ScanService {
         Pageable pageable = PageRequest.of(page, size);
         var scanPage = scanRepository.findAllByOrderByTimestampDesc(pageable);
 
-        List<ScanResponse> content = scanPage.getContent().stream()
+        List<ScanSummaryResponse> content = scanPage.getContent().stream()
                 .map(scan -> {
-                    List<Finding> findings = findingRepository.findByScanId(scan.getId());
+                    List<Finding> findings = findingRepository.findByScan(scan);
                     double score = severityScoringService.score(findings);
-                    return new ScanResponse(
+                    java.time.Instant timestamp = scan.getTimestamp() != null
+                            ? scan.getTimestamp().atZone(ZoneOffset.UTC).toInstant()
+                            : null;
+                    return new ScanSummaryResponse(
                             scan.getId(),
                             scan.getUrl(),
                             scan.getMethod(),
                             scan.getModelId(),
-                            scan.getTimestamp(),
+                            timestamp,
                             score,
                             findings.size()
                     );
@@ -120,5 +127,27 @@ public class ScanService {
         findingRepository.saveAll(findings);
 
         return savedScan;
+    }
+
+    /**
+     * Finds a Scan by ID, throwing 404 if not found.
+     *
+     * @param id the scan ID
+     * @return the {@link Scan} entity
+     */
+    public Scan findById(Long id) {
+        return scanRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Scan not found: " + id));
+    }
+
+    /**
+     * Returns all findings for the given scan.
+     *
+     * @param scan the scan entity
+     * @return list of {@link Finding} entities
+     */
+    public List<Finding> findingsForScan(Scan scan) {
+        return findingRepository.findByScan(scan);
     }
 }

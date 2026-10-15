@@ -1,11 +1,13 @@
 package usv.dizertatie.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import usv.dizertatie.domain.Finding;
+import usv.dizertatie.domain.Scan;
 import usv.dizertatie.service.ScanService;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/scans")
@@ -19,5 +21,54 @@ public class ScanController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return scanService.findAll(page, size);
+    }
+
+    @PostMapping
+    public ResponseEntity<ScanResponse> createScan(@RequestBody ScanRequest request) {
+        Scan scan;
+        if ("AXE".equalsIgnoreCase(request.method())) {
+            scan = scanService.runAxeScan(request.url());
+        } else {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "Unsupported method: " + request.method()
+            );
+        }
+
+        ScanResponse response = toResponse(scan, List.of());
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ScanResponse> getScan(@PathVariable Long id) {
+        Scan scan = scanService.findById(id);
+        List<Finding> findings = scanService.findingsForScan(scan);
+        ScanResponse response = toResponse(scan, findings);
+        return ResponseEntity.ok(response);
+    }
+
+    private ScanResponse toResponse(Scan scan, List<Finding> findings) {
+        List<FindingResponse> findingResponses = findings.stream()
+                .map(f -> new FindingResponse(
+                        f.getSourceMethod(),
+                        f.getWcagCriterion(),
+                        f.getWcagLevel(),
+                        f.getSeverity(),
+                        f.getElementSelector(),
+                        f.getDescription()
+                ))
+                .toList();
+
+        java.time.Instant timestamp = scan.getTimestamp() != null
+                ? scan.getTimestamp().atZone(java.time.ZoneOffset.UTC).toInstant()
+                : null;
+
+        return new ScanResponse(
+                scan.getId(),
+                scan.getUrl(),
+                scan.getMethod(),
+                timestamp,
+                findingResponses
+        );
     }
 }
