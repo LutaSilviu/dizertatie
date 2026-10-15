@@ -8,13 +8,21 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.domain.BenchmarkPage;
 import usv.dizertatie.domain.BenchmarkRun;
+import usv.dizertatie.domain.Finding;
+import usv.dizertatie.domain.Scan;
+import usv.dizertatie.domain.GroundTruthLabel;
+import usv.dizertatie.repository.BenchmarkPageRepository;
+import usv.dizertatie.repository.FindingRepository;
+import usv.dizertatie.repository.GroundTruthLabelRepository;
 import usv.dizertatie.service.BenchmarkRunnerService;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -46,6 +54,15 @@ class BenchmarkControllerTest {
 
     @MockitoBean
     private BenchmarkRunnerService benchmarkRunnerService;
+
+    @MockitoBean
+    private BenchmarkPageRepository benchmarkPageRepository;
+
+    @MockitoBean
+    private FindingRepository findingRepository;
+
+    @MockitoBean
+    private GroundTruthLabelRepository groundTruthLabelRepository;
 
     @Test
     void postBenchmarkRuns_withValidApiKey_returns202WithRunId() throws Exception {
@@ -162,6 +179,66 @@ class BenchmarkControllerTest {
     @Test
     void listBenchmarkRuns_withoutApiKey_returns401() throws Exception {
         mockMvc.perform(get("/benchmark-runs"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ---- export.csv tests ----
+
+    @Test
+    void exportCsv_withValidApiKey_returns200WithCsvContentTypeAndDispositionHeader() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder()
+                .id(5L)
+                .name("Export Run")
+                .status("COMPLETE")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 12, 0))
+                .totalPages(1)
+                .pagesDone(1)
+                .build();
+
+        Scan scan = Scan.builder().id(10L).url("https://example.com").method("AXE").timestamp(LocalDateTime.of(2026, 10, 15, 12, 0)).build();
+
+        BenchmarkPage page = BenchmarkPage.builder()
+                .id(1L)
+                .run(run)
+                .url("https://example.com")
+                .status("DONE")
+                .axeScanId(10L)
+                .build();
+
+        Finding finding = Finding.builder()
+                .id(1L)
+                .scan(scan)
+                .wcagCriterion("1.1.1")
+                .wcagLevel("A")
+                .severity("critical")
+                .elementSelector("img")
+                .description("Missing alt text")
+                .build();
+
+        when(benchmarkRunnerService.findById(5L)).thenReturn(Optional.of(run));
+        when(benchmarkPageRepository.findByRunId(5L)).thenReturn(List.of(page));
+        when(findingRepository.findByScanId(10L)).thenReturn(List.of(finding));
+        when(groundTruthLabelRepository.findByUrl("https://example.com")).thenReturn(List.of());
+
+        mockMvc.perform(get("/benchmark-runs/5/export.csv")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", containsString("text/csv")))
+                .andExpect(header().string("Content-Disposition", containsString("benchmark-5.csv")));
+    }
+
+    @Test
+    void exportCsv_withUnknownId_returns404() throws Exception {
+        when(benchmarkRunnerService.findById(999L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/benchmark-runs/999/export.csv")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void exportCsv_withoutApiKey_returns401() throws Exception {
+        mockMvc.perform(get("/benchmark-runs/5/export.csv"))
                 .andExpect(status().isUnauthorized());
     }
 }
