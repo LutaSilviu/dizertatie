@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.export.CsvSerializer;
 import usv.dizertatie.service.ScanService;
 
 import java.time.Instant;
@@ -18,6 +19,7 @@ import java.util.List;
 
 import usv.dizertatie.ai.AiModel;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -49,6 +51,9 @@ class ScanControllerTest {
 
     @MockitoBean
     private ScanService scanService;
+
+    @MockitoBean
+    private CsvSerializer csvSerializer;
 
     @Test
     void getScans_withValidApiKey_returns200AndJsonArray() throws Exception {
@@ -154,6 +159,69 @@ class ScanControllerTest {
     }
 
     @Test
+    void getScansById_responseIncludesSeverityScore() throws Exception {
+        Scan scan = Scan.builder()
+                .id(2L)
+                .url("https://example.com")
+                .method("AXE")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        Finding finding = Finding.builder()
+                .id(20L)
+                .scan(scan)
+                .sourceMethod("AXE")
+                .wcagCriterion("1.1.1")
+                .wcagLevel("A")
+                .severity("serious")
+                .elementSelector("img")
+                .description("Missing alt text")
+                .build();
+
+        when(scanService.findById(2L)).thenReturn(scan);
+        when(scanService.findingsForScan(scan)).thenReturn(List.of(finding));
+
+        mockMvc.perform(get("/scans/2")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.severityScore").isNumber());
+    }
+
+    @Test
+    void getScansById_responseIncludesConformanceScores() throws Exception {
+        Scan scan = Scan.builder()
+                .id(3L)
+                .url("https://example.com")
+                .method("AXE")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        Finding finding = Finding.builder()
+                .id(30L)
+                .scan(scan)
+                .sourceMethod("AXE")
+                .wcagCriterion("1.1.1")
+                .wcagLevel("A")
+                .severity("serious")
+                .elementSelector("img")
+                .description("Missing alt text")
+                .build();
+
+        when(scanService.findById(3L)).thenReturn(scan);
+        when(scanService.findingsForScan(scan)).thenReturn(List.of(finding));
+
+        mockMvc.perform(get("/scans/3")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.conformanceScores").exists())
+                .andExpect(jsonPath("$.conformanceScores.levelA").isNumber())
+                .andExpect(jsonPath("$.conformanceScores.levelAA").isNumber())
+                .andExpect(jsonPath("$.conformanceScores.levelAAA").isNumber());
+    }
+
+    @Test
     void getScansById_withUnknownId_withValidApiKey_returns404() throws Exception {
         when(scanService.findById(999L))
                 .thenThrow(new ResponseStatusException(NOT_FOUND, "Scan not found: 999"));
@@ -219,5 +287,57 @@ class ScanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value(77));
+    }
+
+    @Test
+    void exportCsv_withValidId_withValidApiKey_returns200AndCsvContentType() throws Exception {
+        Scan scan = Scan.builder()
+                .id(1L)
+                .url("https://example.com")
+                .method("AXE")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        Finding finding = Finding.builder()
+                .id(10L)
+                .scan(scan)
+                .sourceMethod("AXE")
+                .wcagCriterion("1.1.1")
+                .wcagLevel("A")
+                .severity("serious")
+                .elementSelector("img")
+                .description("Missing alt text")
+                .build();
+
+        String csvContent = "sourceMethod,wcagCriterion,wcagLevel,severity,elementSelector,description\n"
+                + "AXE,1.1.1,A,serious,img,Missing alt text\n";
+
+        when(scanService.findById(1L)).thenReturn(scan);
+        when(scanService.findingsForScan(scan)).thenReturn(List.of(finding));
+        when(csvSerializer.serialize(scan, List.of(finding))).thenReturn(csvContent);
+
+        mockMvc.perform(get("/scans/1/export.csv")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"scan-1.csv\""))
+                .andExpect(content().string(containsString(
+                        "sourceMethod,wcagCriterion,wcagLevel,severity,elementSelector,description")));
+    }
+
+    @Test
+    void exportCsv_withUnknownId_withValidApiKey_returns404() throws Exception {
+        when(scanService.findById(999L))
+                .thenThrow(new ResponseStatusException(NOT_FOUND, "Scan not found: 999"));
+
+        mockMvc.perform(get("/scans/999/export.csv")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void exportCsv_withoutApiKey_returns401() throws Exception {
+        mockMvc.perform(get("/scans/1/export.csv"))
+                .andExpect(status().isUnauthorized());
     }
 }
