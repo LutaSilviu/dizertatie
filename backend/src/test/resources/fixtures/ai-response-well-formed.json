@@ -1,0 +1,31 @@
+{
+  "findings": [
+    {
+      "wcagCriterion": "1.1.1",
+      "wcagLevel": "A",
+      "severity": "critical",
+      "elementSelector": "img.hero",
+      "description": "Images must have alternate text describing their purpose",
+      "suggestion": "Add a descriptive alt attribute to the image element",
+      "confidence": 0.97
+    },
+    {
+      "wcagCriterion": "2.4.1",
+      "wcagLevel": "AA",
+      "severity": "serious",
+      "elementSelector": "nav.main-nav",
+      "description": "Blocks of content that are repeated on multiple pages must have a bypass mechanism",
+      "suggestion": "Add a skip navigation link before the main navigation",
+      "confidence": 0.85
+    },
+    {
+      "wcagCriterion": "1.4.6",
+      "wcagLevel": "AAA",
+      "severity": "moderate",
+      "elementSelector": "p.body-text",
+      "description": "Enhanced contrast ratio of 7:1 is required for AAA compliance",
+      "suggestion": "Increase text contrast ratio to at least 7:1 against background",
+      "confidence": 0.73
+    }
+  ]
+}
