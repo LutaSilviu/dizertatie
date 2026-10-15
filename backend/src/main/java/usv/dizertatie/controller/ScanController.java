@@ -3,6 +3,7 @@ package usv.dizertatie.controller;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
 import usv.dizertatie.service.ScanService;
@@ -28,6 +29,9 @@ public class ScanController {
         Scan scan;
         if ("AXE".equalsIgnoreCase(request.method())) {
             scan = scanService.runAxeScan(request.url());
+        } else if ("AI".equalsIgnoreCase(request.method())) {
+            AiModel model = parseModel(request.model());
+            scan = scanService.runAiScan(request.url(), model);
         } else {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST,
@@ -37,6 +41,20 @@ public class ScanController {
 
         ScanResponse response = toResponse(scan, List.of());
         return ResponseEntity.ok(response);
+    }
+
+    private AiModel parseModel(String model) {
+        if (model == null || model.isBlank()) {
+            return AiModel.GPT4O_MINI;
+        }
+        try {
+            return AiModel.valueOf(model.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "Unsupported model: " + model
+            );
+        }
     }
 
     @GetMapping("/{id}")
