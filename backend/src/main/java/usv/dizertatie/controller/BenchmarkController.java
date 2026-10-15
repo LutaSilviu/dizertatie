@@ -9,6 +9,7 @@ import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.domain.BenchmarkRun;
 import usv.dizertatie.repository.BenchmarkPageRepository;
 import usv.dizertatie.service.BenchmarkRunnerService;
+import usv.dizertatie.service.MetricsService;
 
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ public class BenchmarkController {
 
     private final BenchmarkRunnerService benchmarkRunnerService;
     private final BenchmarkPageRepository benchmarkPageRepository;
+    private final MetricsService metricsService;
 
     /**
      * Starts a new benchmark run asynchronously.
@@ -73,6 +75,28 @@ public class BenchmarkController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "BenchmarkRun not found: " + id));
         return ResponseEntity.ok(toStatusResponse(run, true));
+    }
+
+    /**
+     * Returns full benchmark metrics for a completed run.
+     *
+     * <p>Returns 404 when the run does not exist, and 409 when the run is not yet COMPLETE.
+     *
+     * @param id run identifier
+     * @return metrics response
+     */
+    @GetMapping("/{id}/metrics")
+    public ResponseEntity<BenchmarkMetricsResponse> getRunMetrics(@PathVariable Long id) {
+        BenchmarkRun run = benchmarkRunnerService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "BenchmarkRun not found: " + id));
+
+        if (!"COMPLETE".equals(run.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Run is still in progress");
+        }
+
+        BenchmarkMetricsResponse response = BenchmarkMetricsResponse.from(metricsService.compute(run));
+        return ResponseEntity.ok(response);
     }
 
     private BenchmarkRunStatusResponse toStatusResponse(BenchmarkRun run, boolean includeAvgs) {

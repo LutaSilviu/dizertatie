@@ -9,10 +9,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.domain.BenchmarkRun;
+import usv.dizertatie.service.BenchmarkMetrics;
 import usv.dizertatie.service.BenchmarkRunnerService;
+import usv.dizertatie.service.MetricsService;
+import usv.dizertatie.service.MethodMetrics;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +50,9 @@ class BenchmarkControllerTest {
 
     @MockitoBean
     private BenchmarkRunnerService benchmarkRunnerService;
+
+    @MockitoBean
+    private MetricsService metricsService;
 
     @Test
     void postBenchmarkRuns_withValidApiKey_returns202WithRunId() throws Exception {
@@ -162,6 +169,92 @@ class BenchmarkControllerTest {
     @Test
     void listBenchmarkRuns_withoutApiKey_returns401() throws Exception {
         mockMvc.perform(get("/benchmark-runs"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ---- GET /benchmark-runs/{id}/metrics ----
+
+    @Test
+    void getBenchmarkRunMetrics_withCompleteRun_returns200WithMethodsStructure() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder()
+                .id(1L)
+                .name("Metrics Run")
+                .status("COMPLETE")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 10, 0))
+                .totalPages(3)
+                .pagesDone(3)
+                .build();
+
+        BenchmarkMetrics metrics = new BenchmarkMetrics(
+                1L,
+                Map.of(
+                        "AXE",      new MethodMetrics(0.82, 0.74, 0.78),
+                        "AI",       new MethodMetrics(0.71, 0.88, 0.79),
+                        "COMBINED", new MethodMetrics(0.68, 0.91, 0.78)
+                ),
+                Map.of(
+                        "Perceivable", Map.of(
+                                "AXE",      new MethodMetrics(0.9, 0.8, 0.85),
+                                "AI",       new MethodMetrics(0.75, 0.85, 0.80),
+                                "COMBINED", new MethodMetrics(0.70, 0.90, 0.79)
+                        )
+                ),
+                List.of(),
+                List.of(),
+                0.0031,
+                Map.of("AXE", 820.0, "AI", 4300.0, "COMBINED", 5100.0)
+        );
+
+        when(benchmarkRunnerService.findById(1L)).thenReturn(Optional.of(run));
+        when(metricsService.compute(run)).thenReturn(metrics);
+
+        mockMvc.perform(get("/benchmark-runs/1/metrics")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.runId").value(1))
+                .andExpect(jsonPath("$.methods.AXE.precision").value(0.82))
+                .andExpect(jsonPath("$.methods.AXE.recall").value(0.74))
+                .andExpect(jsonPath("$.methods.AXE.f1").value(0.78))
+                .andExpect(jsonPath("$.methods.AI.precision").value(0.71))
+                .andExpect(jsonPath("$.methods.COMBINED.recall").value(0.91))
+                .andExpect(jsonPath("$.byCategory.Perceivable.AXE.precision").value(0.9))
+                .andExpect(jsonPath("$.avgCostPerPageUsd").value(0.0031))
+                .andExpect(jsonPath("$.avgLatencyMs.AXE").value(820.0))
+                .andExpect(jsonPath("$.avgLatencyMs.AI").value(4300.0))
+                .andExpect(jsonPath("$.avgLatencyMs.COMBINED").value(5100.0));
+    }
+
+    @Test
+    void getBenchmarkRunMetrics_withRunningRun_returns409() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder()
+                .id(2L)
+                .name("In Progress")
+                .status("RUNNING")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 10, 0))
+                .totalPages(5)
+                .pagesDone(2)
+                .build();
+
+        when(benchmarkRunnerService.findById(2L)).thenReturn(Optional.of(run));
+
+        mockMvc.perform(get("/benchmark-runs/2/metrics")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void getBenchmarkRunMetrics_withUnknownId_returns404() throws Exception {
+        when(benchmarkRunnerService.findById(999L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/benchmark-runs/999/metrics")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getBenchmarkRunMetrics_withoutApiKey_returns401() throws Exception {
+        mockMvc.perform(get("/benchmark-runs/1/metrics"))
                 .andExpect(status().isUnauthorized());
     }
 }
