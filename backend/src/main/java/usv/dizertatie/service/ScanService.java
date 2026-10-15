@@ -14,6 +14,9 @@ import usv.dizertatie.domain.Scan;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -82,5 +85,27 @@ public class ScanService {
         findingRepository.saveAll(findings);
 
         return savedScan;
+    }
+
+    /**
+     * Finds a Scan by ID, throwing 404 if not found.
+     *
+     * @param id the scan ID
+     * @return the {@link Scan} entity
+     */
+    public Scan findById(Long id) {
+        return scanRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Scan not found: " + id));
+    }
+
+    /**
+     * Returns all findings for the given scan.
+     *
+     * @param scan the scan entity
+     * @return list of {@link Finding} entities
+     */
+    public List<Finding> findingsForScan(Scan scan) {
+        return findingRepository.findByScan(scan);
     }
 }
