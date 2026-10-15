@@ -1,9 +1,21 @@
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import NavShell from './layout/NavShell'
+import AnalyzerPage from './analyzer/AnalyzerPage'
+import BenchmarkPage from './benchmark/BenchmarkPage'
+import SettingsPage from './settings/SettingsPage'
+
 function App() {
   return (
-    <div>
-      <h1>Web Accessibility Analyzer</h1>
-      <p>Frontend placeholder — implementation coming soon.</p>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<NavShell />}>
+          <Route index element={<Navigate to="/analyzer" replace />} />
+          <Route path="/analyzer" element={<AnalyzerPage />} />
+          <Route path="/benchmark" element={<BenchmarkPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 
