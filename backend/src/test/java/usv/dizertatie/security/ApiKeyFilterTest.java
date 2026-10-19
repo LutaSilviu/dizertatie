@@ -50,7 +50,9 @@ class ApiKeyFilterTest {
 
     @Test
     void healthEndpoint_doesNotRequireApiKey() throws Exception {
+        // The filter skips /health, so the request reaches HealthController: any
+        // status but 401 proves the key was not required.
         mockMvc.perform(get("/health"))
-                .andExpect(status().isNotFound()); // 404 but not 401 - filter skips /health
+                .andExpect(status().isOk());
     }
 }

@@ -52,7 +52,14 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- Flyway database migrations -->
+		<!-- Flyway database migrations.
+		     Spring Boot 4 ships autoconfiguration in per-technology modules, so
+		     spring-boot-flyway is what actually runs the migrations on startup;
+		     flyway-core alone is just the library. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-flyway</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-core</artifactId>

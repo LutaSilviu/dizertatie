@@ -4,11 +4,13 @@ import com.microsoft.playwright.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,14 +28,18 @@ class AxeServiceTest {
     }
 
     @Test
-    void run_returnsViolationsJson() {
-        // First call (inject script) returns null, second call (axe.run) returns "[]"
-        when(page.evaluate(anyString()))
-                .thenReturn(null)
-                .thenReturn("[]");
+    void run_injectsAxeIntoGlobalScopeThenReturnsViolationsJson() {
+        when(page.evaluate(anyString())).thenReturn("[]");
 
         String result = axeService.run(page);
 
         assertThat(result).isEqualTo("[]");
+
+        // axe-core must be added as a script tag (global scope), not evaluated inside
+        // a function body, or `axe` is undefined when the audit call runs.
+        ArgumentCaptor<Page.AddScriptTagOptions> captor =
+                ArgumentCaptor.forClass(Page.AddScriptTagOptions.class);
+        verify(page).addScriptTag(captor.capture());
+        assertThat(captor.getValue().content).contains("axe");
     }
 }

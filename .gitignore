@@ -1,0 +1,7 @@
+# Local environment — contains secrets (API keys, DB password).
+# Commit .env.example instead.
+.env
+
+# Scratch / agent working files
+.scratch/
+.claude/

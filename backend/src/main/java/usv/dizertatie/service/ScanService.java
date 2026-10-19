@@ -19,6 +19,7 @@ import usv.dizertatie.controller.ScanHistoryResponse;
 import usv.dizertatie.controller.ScanSummaryResponse;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.playwright.PageCapture;
 import usv.dizertatie.playwright.PageCaptureService;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
@@ -154,8 +155,8 @@ public class ScanService {
      */
     @Transactional
     public Scan runAiScan(String url, AiModel model) {
-        String html = pageCaptureService.captureHtml(url);
-        String rawJson = aiAnalysisService.analyze(html, model);
+        PageCapture capture = pageCaptureService.capture(url);
+        String rawJson = aiAnalysisService.analyze(capture, model);
         List<Finding> findings = aiResponseParser.parse(rawJson);
 
         Scan scan = Scan.builder()
@@ -194,6 +195,7 @@ public class ScanService {
     public Scan runCombinedScan(String url, AiModel model) {
         String violationsJson;
         String html;
+        byte[] screenshotPng;
         String browserVersion;
 
         Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
@@ -204,6 +206,7 @@ public class ScanService {
 
             browserVersion = browser.browserType().name() + "/" + browser.version();
             html = page.content();
+            screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
             violationsJson = axeService.run(page);
         } finally {
             if (page != null) {
@@ -214,7 +217,7 @@ public class ScanService {
 
         List<Finding> axeFindings = axeResultParser.parse(violationsJson);
 
-        String rawJson = aiAnalysisService.analyze(html, model);
+        String rawJson = aiAnalysisService.analyze(new PageCapture(html, screenshotPng), model);
         List<Finding> aiFindings = aiResponseParser.parse(rawJson);
 
         List<Finding> mergedFindings = findingMergeService.merge(axeFindings, aiFindings);

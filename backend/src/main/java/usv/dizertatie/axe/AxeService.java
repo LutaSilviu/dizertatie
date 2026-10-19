@@ -31,7 +31,10 @@ public class AxeService {
      * @return raw violations JSON string from axe.run()
      */
     public String run(Page page) {
-        page.evaluate("() => { " + axeScript + " }");
+        // addScriptTag evaluates in the page's global scope. Wrapping the source in
+        // an arrow function body instead would scope axe-core's own `var axe` to that
+        // function, leaving `axe` undefined by the time the audit call runs.
+        page.addScriptTag(new Page.AddScriptTagOptions().setContent(axeScript));
         return (String) page.evaluate("async () => { const r = await axe.run(); return JSON.stringify(r.violations); }");
     }
 }
