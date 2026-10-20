@@ -8,7 +8,7 @@ import java.util.List;
  * @param name          human-readable name for this run
  * @param urls          explicit list of URLs; ignored when {@code useBuiltinSet=true}
  * @param useBuiltinSet when {@code true}, URLs are loaded from seeded ground-truth labels
- * @param model         the AI model ID to use (e.g. "gpt-4o", "gpt-4o-mini"); defaults to GPT-4o-mini
+ * @param model         the AI model ID to use (defaults to "gpt-6-luna")
  */
 public record BenchmarkRunRequest(
         String name,
@@ -17,6 +17,9 @@ public record BenchmarkRunRequest(
         String model
 ) {
     public BenchmarkRunRequest {
+        if (name == null || name.isBlank()) {
+            name = "Benchmark run";
+        }
         if (urls == null) {
             urls = List.of();
         }

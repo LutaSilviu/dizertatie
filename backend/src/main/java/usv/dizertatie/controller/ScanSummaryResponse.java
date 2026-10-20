@@ -12,7 +12,7 @@ public record ScanSummaryResponse(
         String url,
         @Schema(description = "Scan method: AXE or AI", example = "AXE")
         String method,
-        @Schema(description = "AI model used (null for AXE scans)", example = "gpt-4o-mini")
+        @Schema(description = "AI model used (null for AXE scans)", example = "gpt-6-luna")
         String model,
         @Schema(description = "Timestamp when the scan was completed (ISO-8601 UTC)")
         Instant timestamp,

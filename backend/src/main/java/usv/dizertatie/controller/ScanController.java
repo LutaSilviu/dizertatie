@@ -92,11 +92,8 @@ public class ScanController {
     }
 
     private AiModel parseModel(String model) {
-        if (model == null || model.isBlank()) {
-            return AiModel.GPT4O_MINI;
-        }
         try {
-            return AiModel.valueOf(model.toUpperCase());
+            return AiModel.fromId(model);
         } catch (IllegalArgumentException e) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST,

@@ -44,7 +44,12 @@ public class BenchmarkController {
      */
     @PostMapping
     public ResponseEntity<Map<String, Long>> createRun(@RequestBody BenchmarkRunRequest request) {
-        AiModel model = AiModel.fromId(request.model());
+        AiModel model;
+        try {
+            model = AiModel.fromId(request.model());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
         BenchmarkRun run = benchmarkRunnerService.createRun(
                 request.name(),
                 request.urls(),

@@ -3,15 +3,15 @@ import { useSettings, type AiModel } from './useSettings'
 import { apiFetch } from './apiClient'
 
 export function SettingsPage() {
-  const { apiKey, aiModel, setApiKey, setAiModel } = useSettings()
+  const { aiModel, setAiModel } = useSettings()
 
-  const [draftKey, setDraftKey] = useState<string>(apiKey)
   const [draftModel, setDraftModel] = useState<AiModel>(aiModel)
   const [saved, setSaved] = useState(false)
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle')
+  const [connectionStatus, setConnectionStatus] = useState<
+    'idle' | 'checking' | 'ok' | 'invalid-key' | 'error'
+  >('idle')
 
   const handleSave = () => {
-    setApiKey(draftKey)
     setAiModel(draftModel)
     setSaved(true)
     setConnectionStatus('idle')
@@ -21,8 +21,8 @@ export function SettingsPage() {
   const handleTestConnection = async () => {
     setConnectionStatus('checking')
     try {
-      const res = await apiFetch('/api/health')
-      setConnectionStatus(res.ok ? 'ok' : 'error')
+      const res = await apiFetch('/api/labels')
+      setConnectionStatus(res.ok ? 'ok' : res.status === 401 ? 'invalid-key' : 'error')
     } catch {
       setConnectionStatus('error')
     }
@@ -31,27 +31,21 @@ export function SettingsPage() {
   return (
     <div style={{ maxWidth: 480, margin: '2rem auto', padding: '0 1rem' }}>
       <h1>Settings</h1>
-      <p>Settings page — implementation coming soon.</p>
-
-      <div style={{ marginBottom: '1.5rem' }}>
-        <label htmlFor="api-key" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
-          API Key
-        </label>
-        <input
-          id="api-key"
-          type="password"
-          value={draftKey}
-          onChange={(e) => {
-            setDraftKey(e.target.value)
-            setSaved(false)
-          }}
-          placeholder="Enter your API key"
-          style={{ width: '100%', padding: '0.5rem', boxSizing: 'border-box' }}
-        />
-      </div>
+      <p>The API proxy automatically uses <code>APP_API_KEY</code> from <code>.env</code>.</p>
 
       <fieldset style={{ marginBottom: '1.5rem', border: '1px solid #ccc', padding: '0.75rem 1rem' }}>
         <legend style={{ fontWeight: 600 }}>AI Model</legend>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <input
+            type="radio"
+            name="ai-model"
+            value="gpt-6-luna"
+            checked={draftModel === 'gpt-6-luna'}
+            onChange={() => setDraftModel('gpt-6-luna')}
+          />
+          GPT-6 Luna (recommended)
+        </label>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
           <input
@@ -106,7 +100,13 @@ export function SettingsPage() {
 
         {connectionStatus === 'error' && (
           <span style={{ color: 'red' }} role="status">
-            Connection failed
+            Could not reach the API. Check that the Docker services are running.
+          </span>
+        )}
+
+        {connectionStatus === 'invalid-key' && (
+          <span style={{ color: 'red' }} role="status">
+            API key rejected. Check <code>APP_API_KEY</code> in <code>.env</code> and restart the stack.
           </span>
         )}
       </div>

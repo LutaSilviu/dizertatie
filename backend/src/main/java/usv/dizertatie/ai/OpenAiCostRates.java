@@ -3,8 +3,9 @@ package usv.dizertatie.ai;
 /**
  * Cost rates for OpenAI API usage estimation.
  *
- * <p>Rates are in USD per 1,000 tokens (as of 2024-11):
+ * <p>Rates are in USD per 1,000 tokens:
  * <ul>
+ *   <li>GPT-6 Luna: $0.0001 / 1K input tokens, $0.0005 / 1K output tokens</li>
  *   <li>GPT-4o: $0.0025 / 1K input tokens, $0.010 / 1K output tokens</li>
  *   <li>GPT-4o-mini: $0.00015 / 1K input tokens, $0.00060 / 1K output tokens</li>
  * </ul>
@@ -23,6 +24,10 @@ public final class OpenAiCostRates {
     // GPT-4o pricing (USD per 1,000 tokens)
     public static final double GPT4O_INPUT_PER_1K = 0.0025;
     public static final double GPT4O_OUTPUT_PER_1K = 0.010;
+
+    // GPT-6 Luna pricing (USD per 1,000 tokens)
+    public static final double GPT6_LUNA_INPUT_PER_1K = 0.0001;
+    public static final double GPT6_LUNA_OUTPUT_PER_1K = 0.0005;
 
     // GPT-4o-mini pricing (USD per 1,000 tokens)
     public static final double GPT4O_MINI_INPUT_PER_1K = 0.00015;
@@ -56,7 +61,10 @@ public final class OpenAiCostRates {
         double inputRate;
         double outputRate;
 
-        if (model == AiModel.GPT4O) {
+        if (model == AiModel.GPT6_LUNA) {
+            inputRate = GPT6_LUNA_INPUT_PER_1K;
+            outputRate = GPT6_LUNA_OUTPUT_PER_1K;
+        } else if (model == AiModel.GPT4O) {
             inputRate = GPT4O_INPUT_PER_1K;
             outputRate = GPT4O_OUTPUT_PER_1K;
         } else {

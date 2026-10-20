@@ -1,6 +1,7 @@
 package usv.dizertatie.service;
 
 import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.WaitUntilState;
@@ -106,9 +107,11 @@ public class ScanService {
         String browserVersion;
 
         Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+        Browser.NewContextOptions contextOptions = new Browser.NewContextOptions().setBypassCSP(true);
+        BrowserContext context = browser.newContext(contextOptions);
         Page page = null;
         try {
-            page = browser.newPage();
+            page = context.newPage();
             page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
 
             browserVersion = browser.browserType().name() + "/" + browser.version();
@@ -116,9 +119,7 @@ public class ScanService {
             // Run axe-core on the already-loaded page
             violationsJson = axeService.run(page);
         } finally {
-            if (page != null) {
-                page.close();
-            }
+            context.close();
             browser.close();
         }
 
@@ -199,9 +200,11 @@ public class ScanService {
         String browserVersion;
 
         Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+        Browser.NewContextOptions contextOptions = new Browser.NewContextOptions().setBypassCSP(true);
+        BrowserContext context = browser.newContext(contextOptions);
         Page page = null;
         try {
-            page = browser.newPage();
+            page = context.newPage();
             page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
 
             browserVersion = browser.browserType().name() + "/" + browser.version();
@@ -209,9 +212,7 @@ public class ScanService {
             screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
             violationsJson = axeService.run(page);
         } finally {
-            if (page != null) {
-                page.close();
-            }
+            context.close();
             browser.close();
         }
 

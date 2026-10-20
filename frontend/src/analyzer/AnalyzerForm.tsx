@@ -6,7 +6,7 @@ import { useSettings, type AiModel } from '../settings/useSettings'
 type ScanMethod = 'AXE' | 'AI' | 'COMBINED'
 
 interface ScanResponse {
-  scanId: string
+  id: number
 }
 
 const METHOD_LABELS: Record<ScanMethod, string> = {
@@ -16,6 +16,7 @@ const METHOD_LABELS: Record<ScanMethod, string> = {
 }
 
 const MODELS: { value: AiModel; label: string }[] = [
+  { value: 'gpt-6-luna', label: 'GPT-6 Luna' },
   { value: 'gpt-4o-mini', label: 'GPT-4o-mini' },
   { value: 'gpt-4o', label: 'GPT-4o' },
 ]
@@ -86,7 +87,7 @@ function AnalyzerForm() {
       }
 
       const data = await response.json() as ScanResponse
-      navigate(`/report/${data.scanId}`)
+      navigate(`/report/${data.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
     } finally {

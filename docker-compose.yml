@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-dizertatie}
       POSTGRES_USER: ${POSTGRES_USER:-dizertatie}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -12,6 +12,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
 
   backend:
     build: ./backend
@@ -21,18 +22,28 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-dizertatie}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-dizertatie}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      APP_API_KEY: ${APP_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+      APP_API_KEY: ${APP_API_KEY:-local-development-only}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-test-key}
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   frontend:
     build: ./frontend
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "80:80"
+    environment:
+      APP_API_KEY: ${APP_API_KEY:-local-development-only}
+      NGINX_ENVSUBST_FILTER: ^APP_API_KEY$
 
 volumes:
   postgres_data:

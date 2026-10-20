@@ -8,7 +8,7 @@ public record ScanRequest(
         String url,
         @Schema(description = "Scan method: AXE (rule-based) or AI (LLM-based)", example = "AXE", allowableValues = {"AXE", "AI"}, requiredMode = Schema.RequiredMode.REQUIRED)
         String method,
-        @Schema(description = "AI model to use when method=AI (e.g. GPT4O_MINI, GPT4O). Ignored for AXE.", example = "GPT4O_MINI")
+        @Schema(description = "AI model to use when method=AI (e.g. gpt-6-luna). Defaults to GPT-6 Luna. Ignored for AXE.", example = "gpt-6-luna")
         String model
 ) {
 }

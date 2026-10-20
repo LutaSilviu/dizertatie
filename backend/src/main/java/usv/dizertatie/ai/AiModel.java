@@ -2,6 +2,7 @@ package usv.dizertatie.ai;
 
 public enum AiModel {
 
+    GPT6_LUNA("gpt-6-luna"),
     GPT4O("gpt-4o"),
     GPT4O_MINI("gpt-4o-mini");
 
@@ -17,13 +18,13 @@ public enum AiModel {
 
     public static AiModel fromId(String modelId) {
         if (modelId == null || modelId.isBlank()) {
-            return GPT4O_MINI;
+            return GPT6_LUNA;
         }
         for (AiModel m : values()) {
             if (m.modelId.equalsIgnoreCase(modelId) || m.name().equalsIgnoreCase(modelId)) {
                 return m;
             }
         }
-        return GPT4O_MINI;
+        throw new IllegalArgumentException("Unsupported AI model: " + modelId);
     }
 }

@@ -3,7 +3,7 @@
 A master's thesis project at **USV Suceava** that evaluates web page accessibility by comparing three analysis methods:
 
 - **AXE** — rule-based analysis using Axe-Core 4.9 via Playwright
-- **AI** — LLM-powered analysis using OpenAI GPT-4o / GPT-4o-mini
+- **AI** — LLM-powered analysis using OpenAI GPT-6 Luna, GPT-4o, or GPT-4o-mini
 - **COMBINED** — both methods merged with duplicate findings deduplicated
 
 The system scores pages against **WCAG 2.2** criteria, supports benchmarking with precision/recall/F1 metrics, and provides a React dashboard for exploring results.
@@ -26,7 +26,7 @@ The system scores pages against **WCAG 2.2** criteria, supports benchmarking wit
 
 ```bash
 cp .env.example .env
-# Edit .env — set at minimum: POSTGRES_PASSWORD, APP_API_KEY, OPENAI_API_KEY
+# Set OPENAI_API_KEY in .env to enable AI and COMBINED analysis.
 docker compose up --build
 ```
 
@@ -40,15 +40,31 @@ docker compose up --build
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in the required values before starting the stack.
+Copy `.env.example` to `.env` before starting the stack. Compose has local-only fallbacks
+for the database password and API key, so AXE analysis and the dashboard can start without
+an OpenAI key. AI and COMBINED analysis require a valid `OPENAI_API_KEY`.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `POSTGRES_DB` | PostgreSQL database name | `accessibility` |
 | `POSTGRES_USER` | PostgreSQL username | `accessibility` |
-| `POSTGRES_PASSWORD` | PostgreSQL password (**required**) | `changeme` |
-| `APP_API_KEY` | API key that protects all backend endpoints (**required**) | `my-secret-key` |
-| `OPENAI_API_KEY` | OpenAI API key used for AI analysis (**required**) | `sk-...` |
+| `POSTGRES_PASSWORD` | PostgreSQL password (use a private value outside local development) | `changeme` |
+| `APP_API_KEY` | API key required by backend endpoints (local fallback: `local-development-only`) | `my-secret-key` |
+| `OPENAI_API_KEY` | OpenAI API key required for AI and COMBINED analysis | `sk-...` |
+
+### If PostgreSQL rejects the password after it has already started
+
+PostgreSQL applies `POSTGRES_PASSWORD` only when it initializes an empty data volume.
+Changing `.env` later does not change the password stored in the existing database volume.
+To keep the data, open a local database session and set the role password to match `.env`:
+
+```bash
+docker compose exec db psql -U dizertatie -d dizertatie
+```
+
+At the `psql` prompt, run `\password dizertatie`, enter the value of `POSTGRES_PASSWORD`,
+then exit with `\q` and restart the backend with `docker compose restart backend`.
+If `POSTGRES_USER` or `POSTGRES_DB` were customized, use those values in the `psql` command.
 
 ---
 
@@ -60,7 +76,7 @@ All API endpoints (except `/health`) require the `X-API-Key` header:
 X-API-Key: <your APP_API_KEY value>
 ```
 
-The key can be configured in the **Settings** page of the React UI; it is stored locally in the browser and attached to every request automatically.
+The Docker frontend proxy reads `APP_API_KEY` from `.env` and adds it to API requests on the server side. You do not need to paste it into the browser. Direct requests to port 8080 must still include the header above.
 
 ---
 
@@ -72,7 +88,7 @@ Rule-based analysis powered by **Axe-Core 4.9** running inside a headless Chromi
 
 ### AI
 
-The page HTML is sent to **GPT-4o** or **GPT-4o-mini** (selectable in Settings). The model identifies accessibility issues based on WCAG 2.2 guidelines and returns structured findings. Useful for catching semantic and contextual issues that rule-based engines miss.
+The page HTML and screenshot are sent to **GPT-6 Luna** by default. **GPT-4o** and **GPT-4o-mini** are also available in Settings. The model identifies accessibility issues based on WCAG 2.2 guidelines and returns structured findings. Useful for catching semantic and contextual issues that rule-based engines miss.
 
 ### COMBINED
 

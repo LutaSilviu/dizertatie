@@ -4,8 +4,7 @@ import { apiFetch } from '../settings/apiClient'
 import { useSettings, AiModel } from '../settings/useSettings'
 
 interface BenchmarkRunResponse {
-  id: number
-  status: string
+  runId: number
 }
 
 function BenchmarkForm() {
@@ -31,7 +30,7 @@ function BenchmarkForm() {
           .filter(Boolean)
 
     try {
-      const response = await apiFetch('/api/benchmark/runs', {
+      const response = await apiFetch('/api/benchmark-runs', {
         method: 'POST',
         body: JSON.stringify({ useBuiltinSet, urls, model }),
       })
@@ -42,7 +41,7 @@ function BenchmarkForm() {
       }
 
       const data: BenchmarkRunResponse = await response.json()
-      navigate(`/benchmark/${data.id}`)
+      navigate(`/benchmark/${data.runId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred')
     } finally {
@@ -84,6 +83,7 @@ function BenchmarkForm() {
           value={model}
           onChange={(e) => setModel(e.target.value as AiModel)}
         >
+          <option value="gpt-6-luna">gpt-6-luna</option>
           <option value="gpt-4o-mini">gpt-4o-mini</option>
           <option value="gpt-4o">gpt-4o</option>
         </select>

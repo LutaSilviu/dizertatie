@@ -13,14 +13,17 @@ public class OpenAiModelSelector {
         this.chatClientBuilder = chatClientBuilder;
     }
 
-    /**
-     * Returns a {@link ChatClient} configured with the given model at temperature 0.
-     */
+    /** Returns a ChatClient configured for the selected OpenAI model. */
     public ChatClient getClient(AiModel model) {
+        OpenAiChatOptions.Builder options = OpenAiChatOptions.builder()
+                .model(model.getModelId());
+        if (model == AiModel.GPT6_LUNA) {
+            options.reasoningEffort("none");
+        }
+        options.temperature(0.0);
+
         return chatClientBuilder
-                .defaultOptions(OpenAiChatOptions.builder()
-                        .model(model.getModelId())
-                        .temperature(0.0))
+                .defaultOptions(options)
                 .build();
     }
 
