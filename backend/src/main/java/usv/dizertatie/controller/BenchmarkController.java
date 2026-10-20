@@ -96,6 +96,9 @@ public class BenchmarkController {
         BenchmarkRun run = benchmarkRunnerService.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "BenchmarkRun not found: " + id));
+        if (!"COMPLETE".equals(run.getStatus()) && !"FAILED".equals(run.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Run is still in progress");
+        }
 
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.CONTENT_TYPE, "text/csv");

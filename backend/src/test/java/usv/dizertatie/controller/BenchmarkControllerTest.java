@@ -227,6 +227,26 @@ class BenchmarkControllerTest {
     }
 
     @Test
+    void exportCsv_withPendingOrRunningRun_returnsConflict() throws Exception {
+        for (String status : List.of("PENDING", "RUNNING")) {
+            long runId = status.equals("PENDING") ? 5L : 6L;
+            BenchmarkRun run = BenchmarkRun.builder()
+                    .id(runId)
+                    .name(status + " Run")
+                    .status(status)
+                    .createdAt(LocalDateTime.of(2026, 10, 15, 12, 0))
+                    .totalPages(1)
+                    .pagesDone(0)
+                    .build();
+            when(benchmarkRunnerService.findById(runId)).thenReturn(Optional.of(run));
+
+            mockMvc.perform(get("/benchmark-runs/" + runId + "/export.csv")
+                            .header("X-API-Key", API_KEY))
+                    .andExpect(status().isConflict());
+        }
+    }
+
+    @Test
     void exportCsv_withUnknownId_returns404() throws Exception {
         when(benchmarkRunnerService.findById(999L)).thenReturn(Optional.empty());
 
