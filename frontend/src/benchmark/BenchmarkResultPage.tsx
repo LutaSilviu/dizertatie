@@ -486,11 +486,13 @@ function BenchmarkResultPage() {
     gap: '1.5rem',
   }
 
+  const canExport = status?.status === 'COMPLETE' || status?.status === 'FAILED'
+
   return (
     <div style={containerStyle}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ margin: 0 }}>Benchmark Results</h1>
-        {metrics && (
+        {canExport && (
           <button
             onClick={handleExportCsv}
             disabled={exporting}

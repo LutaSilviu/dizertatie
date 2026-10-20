@@ -1,5 +1,6 @@
 package usv.dizertatie.export;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
@@ -10,45 +11,38 @@ import java.util.List;
  * Serializes a {@link Scan} and its {@link Finding} list to CSV format.
  */
 @Component
+@RequiredArgsConstructor
 public class CsvSerializer {
 
     private static final String HEADER =
             "scanId,url,method,timestamp,sourceMethod,wcagCriterion,wcagLevel,severity,elementSelector,description";
 
+    private final CsvFieldEscaper csvFieldEscaper;
+
     public String serialize(Scan scan, List<Finding> findings) {
         StringBuilder sb = new StringBuilder(HEADER);
         for (Finding f : findings) {
             sb.append('\n');
-            sb.append(escapeCsv(scan.getId() == null ? "" : scan.getId().toString()));
+            sb.append(csvFieldEscaper.escape(scan.getId() == null ? "" : scan.getId().toString()));
             sb.append(',');
-            sb.append(escapeCsv(scan.getUrl()));
+            sb.append(csvFieldEscaper.escape(scan.getUrl()));
             sb.append(',');
-            sb.append(escapeCsv(scan.getMethod()));
+            sb.append(csvFieldEscaper.escape(scan.getMethod()));
             sb.append(',');
-            sb.append(escapeCsv(scan.getTimestamp() == null ? "" : scan.getTimestamp().toString()));
+            sb.append(csvFieldEscaper.escape(scan.getTimestamp() == null ? "" : scan.getTimestamp().toString()));
             sb.append(',');
-            sb.append(escapeCsv(f.getSourceMethod()));
+            sb.append(csvFieldEscaper.escape(f.getSourceMethod()));
             sb.append(',');
-            sb.append(escapeCsv(f.getWcagCriterion()));
+            sb.append(csvFieldEscaper.escape(f.getWcagCriterion()));
             sb.append(',');
-            sb.append(escapeCsv(f.getWcagLevel()));
+            sb.append(csvFieldEscaper.escape(f.getWcagLevel()));
             sb.append(',');
-            sb.append(escapeCsv(f.getSeverity()));
+            sb.append(csvFieldEscaper.escape(f.getSeverity()));
             sb.append(',');
-            sb.append(escapeCsv(f.getElementSelector()));
+            sb.append(csvFieldEscaper.escape(f.getElementSelector()));
             sb.append(',');
-            sb.append(escapeCsv(f.getDescription()));
+            sb.append(csvFieldEscaper.escape(f.getDescription()));
         }
         return sb.toString();
-    }
-
-    private String escapeCsv(String value) {
-        if (value == null) {
-            return "";
-        }
-        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
-            return "\"" + value.replace("\"", "\"\"") + "\"";
-        }
-        return value;
     }
 }

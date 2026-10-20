@@ -20,7 +20,7 @@ class CsvSerializerTest {
 
     @BeforeEach
     void setUp() {
-        serializer = new CsvSerializer();
+        serializer = new CsvSerializer(new CsvFieldEscaper());
         scan = Scan.builder()
                 .id(1L)
                 .url("https://example.com")

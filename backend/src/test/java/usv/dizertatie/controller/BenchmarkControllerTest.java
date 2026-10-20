@@ -8,14 +8,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import usv.dizertatie.ai.AiModel;
-import usv.dizertatie.domain.BenchmarkPage;
 import usv.dizertatie.domain.BenchmarkRun;
-import usv.dizertatie.domain.Finding;
-import usv.dizertatie.domain.Scan;
-import usv.dizertatie.domain.GroundTruthLabel;
+import usv.dizertatie.export.BenchmarkCsvExporter;
 import usv.dizertatie.repository.BenchmarkPageRepository;
-import usv.dizertatie.repository.FindingRepository;
-import usv.dizertatie.repository.GroundTruthLabelRepository;
 import usv.dizertatie.service.BenchmarkMetrics;
 import usv.dizertatie.service.BenchmarkRunnerService;
 import usv.dizertatie.service.MetricsService;
@@ -63,10 +58,7 @@ class BenchmarkControllerTest {
     private BenchmarkPageRepository benchmarkPageRepository;
 
     @MockitoBean
-    private FindingRepository findingRepository;
-
-    @MockitoBean
-    private GroundTruthLabelRepository groundTruthLabelRepository;
+    private BenchmarkCsvExporter benchmarkCsvExporter;
 
     @MockitoBean
     private MetricsService metricsService;
@@ -202,36 +194,36 @@ class BenchmarkControllerTest {
                 .pagesDone(1)
                 .build();
 
-        Scan scan = Scan.builder().id(10L).url("https://example.com").method("AXE").timestamp(LocalDateTime.of(2026, 10, 15, 12, 0)).build();
-
-        BenchmarkPage page = BenchmarkPage.builder()
-                .id(1L)
-                .run(run)
-                .url("https://example.com")
-                .status("DONE")
-                .axeScanId(10L)
-                .build();
-
-        Finding finding = Finding.builder()
-                .id(1L)
-                .scan(scan)
-                .wcagCriterion("1.1.1")
-                .wcagLevel("A")
-                .severity("critical")
-                .elementSelector("img")
-                .description("Missing alt text")
-                .build();
-
         when(benchmarkRunnerService.findById(5L)).thenReturn(Optional.of(run));
-        when(benchmarkPageRepository.findByRunId(5L)).thenReturn(List.of(page));
-        when(findingRepository.findByScanId(10L)).thenReturn(List.of(finding));
-        when(groundTruthLabelRepository.findByUrl("https://example.com")).thenReturn(List.of());
+        when(benchmarkCsvExporter.export(5L)).thenReturn("benchmark CSV content");
 
         mockMvc.perform(get("/benchmark-runs/5/export.csv")
                         .header("X-API-Key", API_KEY))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", containsString("text/csv")))
-                .andExpect(header().string("Content-Disposition", containsString("benchmark-5.csv")));
+                .andExpect(header().string("Content-Disposition", containsString("benchmark-5.csv")))
+                .andExpect(content().string("benchmark CSV content"));
+    }
+
+    @Test
+    void exportCsv_withFailedRun_returnsHeaderOnlyCsv() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder()
+                .id(5L)
+                .name("Failed Run")
+                .status("FAILED")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 12, 0))
+                .totalPages(1)
+                .pagesDone(1)
+                .build();
+        String headerOnlyCsv = "run_id,page_url,method,wcag_criterion,wcag_level,severity,element_selector,description,ground_truth_match";
+
+        when(benchmarkRunnerService.findById(5L)).thenReturn(Optional.of(run));
+        when(benchmarkCsvExporter.export(5L)).thenReturn(headerOnlyCsv);
+
+        mockMvc.perform(get("/benchmark-runs/5/export.csv")
+                        .header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().string(headerOnlyCsv));
     }
 
     @Test
