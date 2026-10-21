@@ -3,7 +3,6 @@ package usv.dizertatie.playwright;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
-import com.microsoft.playwright.options.WaitUntilState;
 import org.springframework.stereotype.Service;
 
 /**
@@ -33,10 +32,12 @@ public class PageCaptureService {
         Page page = null;
         try {
             page = browser.newPage();
-            page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+            PageNavigator.open(page, url);
             String html = page.content();
             byte[] screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
             return new PageCapture(html, screenshotPng);
+        } catch (PageBlockedException e) {
+            throw e;
         } catch (Exception e) {
             throw new PageCaptureException("Failed to capture page from URL: " + url, e);
         } finally {

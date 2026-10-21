@@ -55,4 +55,11 @@ class ApiKeyFilterTest {
         mockMvc.perform(get("/health"))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void datasetFixturePages_doNotRequireApiKey() throws Exception {
+        // The headless scanner loads these pages like any website, without the API key.
+        mockMvc.perform(get("/fixtures/wai-bad/before/home.html"))
+                .andExpect(status().isOk());
+    }
 }

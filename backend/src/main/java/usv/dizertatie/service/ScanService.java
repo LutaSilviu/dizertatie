@@ -4,7 +4,6 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
-import com.microsoft.playwright.options.WaitUntilState;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +21,7 @@ import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
 import usv.dizertatie.playwright.PageCapture;
 import usv.dizertatie.playwright.PageCaptureService;
+import usv.dizertatie.playwright.PageNavigator;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
 import usv.dizertatie.scoring.SeverityScoringService;
@@ -112,7 +112,7 @@ public class ScanService {
         Page page = null;
         try {
             page = context.newPage();
-            page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+            PageNavigator.open(page, url);
 
             browserVersion = browser.browserType().name() + "/" + browser.version();
 
@@ -205,7 +205,7 @@ public class ScanService {
         Page page = null;
         try {
             page = context.newPage();
-            page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+            PageNavigator.open(page, url);
 
             browserVersion = browser.browserType().name() + "/" + browser.version();
             html = page.content();

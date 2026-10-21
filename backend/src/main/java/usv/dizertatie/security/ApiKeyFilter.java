@@ -25,7 +25,8 @@ public class ApiKeyFilter extends OncePerRequestFilter {
         String uri = request.getRequestURI();
         return HEALTH_PATH.equals(uri)
                 || uri.startsWith("/api-docs")
-                || uri.startsWith("/swagger-ui");
+                || uri.startsWith("/swagger-ui")
+                || uri.startsWith("/fixtures/");
     }
 
     @Override
