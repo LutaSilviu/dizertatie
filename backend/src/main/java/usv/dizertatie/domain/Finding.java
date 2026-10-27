@@ -25,6 +25,8 @@ public class Finding {
 
     private String wcagLevel;
 
+    private String ruleId;
+
     private String severity;
 
     private String elementSelector;

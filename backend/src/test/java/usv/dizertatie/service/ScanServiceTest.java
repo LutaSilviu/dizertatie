@@ -18,7 +18,6 @@ import usv.dizertatie.playwright.PageCapture;
 import usv.dizertatie.playwright.PageCaptureService;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
-import usv.dizertatie.scoring.SeverityScoringService;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -44,7 +43,6 @@ class ScanServiceTest {
     @Mock private AiAnalysisService aiAnalysisService;
     @Mock private AiResponseParser aiResponseParser;
     @Mock private PromptLoader promptLoader;
-    @Mock private SeverityScoringService severityScoringService;
     @Mock private FindingMergeService findingMergeService;
 
     @InjectMocks private ScanService scanService;

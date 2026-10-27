@@ -31,6 +31,9 @@ public class Scan {
 
     private String browserVersion;
 
+    @Column(columnDefinition = "TEXT")
+    private String rawAxeIncomplete;
+
     private Boolean cacheHit;
 
     @Column(columnDefinition = "TEXT")

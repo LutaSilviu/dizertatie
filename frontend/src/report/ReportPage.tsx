@@ -3,19 +3,29 @@ import { useParams, Link } from 'react-router-dom'
 import { apiFetch } from '../settings/apiClient'
 import styles from './ReportPage.module.css'
 
-interface ConformanceScores {
-  levelA: number
-  levelAA: number
-  levelAAA: number
-}
-
 interface Finding {
   wcagCriterion: string
   wcagLevel: string
+  ruleId: string
   severity: string
   sourceMethod: string
   elementSelector: string
   description: string
+}
+
+interface ManualReviewElement {
+  target: string
+  html: string
+  failureSummary: string
+}
+
+interface ManualReviewItem {
+  ruleId: string
+  description: string
+  impact: string
+  help: string
+  helpUrl: string
+  elements: ManualReviewElement[]
 }
 
 interface ScanReport {
@@ -24,65 +34,16 @@ interface ScanReport {
   method: string
   model?: string
   timestamp: string
-  severityScore: number
-  conformanceScores: ConformanceScores
+  affectedElementsByImpact: Record<string, number>
+  distinctRuleCount: number
+  wcagCriteriaWithFindings: string[]
   findings: Finding[]
-}
-
-function SeverityBadge({ score }: { score: number }) {
-  let colorClass = styles.severityGreen
-  let label = 'Low'
-  if (score >= 70) {
-    colorClass = styles.severityRed
-    label = 'High'
-  } else if (score >= 30) {
-    colorClass = styles.severityAmber
-    label = 'Medium'
-  }
-
-  return (
-    <div className={styles.severityWrapper} aria-label={`Severity score: ${score} out of 100 (${label})`}>
-      <div className={styles.severityBar}>
-        <div
-          className={[styles.severityFill, colorClass].join(' ')}
-          style={{ width: `${score}%` }}
-        />
-      </div>
-      <span className={[styles.severityBadge, colorClass].join(' ')}>
-        {score} / 100 — {label}
-      </span>
-    </div>
-  )
-}
-
-function ConformanceScoresPanel({ scores }: { scores: ConformanceScores }) {
-  const items = [
-    { label: 'Level A', value: scores.levelA },
-    { label: 'Level AA', value: scores.levelAA },
-    { label: 'Level AAA', value: scores.levelAAA },
-  ]
-
-  return (
-    <div className={styles.conformancePanel}>
-      {items.map(({ label, value }) => (
-        <div key={label} className={styles.conformanceItem}>
-          <span className={styles.conformanceLabel}>{label}</span>
-          <span className={styles.conformanceValue}>{(value * 100).toFixed(1)}%</span>
-          <div className={styles.conformanceBar} aria-hidden="true">
-            <div
-              className={styles.conformanceFill}
-              style={{ width: `${value * 100}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+  manualReviewItems: ManualReviewItem[]
 }
 
 function FindingsTable({ findings }: { findings: Finding[] }) {
   if (findings.length === 0) {
-    return <p className={styles.emptyFindings}>No findings reported for this scan.</p>
+    return <p className={styles.emptyFindings}>No automated findings were reported for this completed scan.</p>
   }
 
   return (
@@ -92,6 +53,7 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
           <tr>
             <th scope="col">WCAG Criterion</th>
             <th scope="col">Level</th>
+            <th scope="col">Rule</th>
             <th scope="col">Severity</th>
             <th scope="col">Source</th>
             <th scope="col">Element Selector</th>
@@ -107,6 +69,7 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
                   {f.wcagLevel}
                 </span>
               </td>
+              <td>{f.ruleId || '—'}</td>
               <td>
                 <span className={[styles.severityLabel, styles[`sev${f.severity}`]].join(' ')}>
                   {f.severity}
@@ -122,6 +85,39 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+function ManualReviewSection({ items }: { items: ManualReviewItem[] }) {
+  if (items.length === 0) return null
+
+  return (
+    <section className={styles.section} aria-labelledby="manual-review-heading">
+      <h2 id="manual-review-heading" className={styles.sectionTitle}>
+        Needs manual review ({items.length})
+      </h2>
+      <p className={styles.reviewNote}>These checks need a person to decide whether the page has an accessibility issue. They are not counted as violations.</p>
+      <ul className={styles.reviewList}>
+        {items.map((item) => (
+          <li key={item.ruleId} className={styles.reviewItem}>
+            <h3>{item.help || item.ruleId}</h3>
+            <p>{item.description}</p>
+            <p>Impact: {item.impact || 'not specified'} · Rule: <code>{item.ruleId}</code></p>
+            {item.helpUrl && <a href={item.helpUrl} target="_blank" rel="noreferrer">axe-core guidance</a>}
+            {item.elements.length > 0 && (
+              <ul className={styles.reviewElements}>
+                {item.elements.map((element, index) => (
+                  <li key={`${element.target}-${index}`}>
+                    {element.target && <code>{element.target}</code>}
+                    {element.failureSummary && <p>{element.failureSummary}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -239,22 +235,47 @@ function ReportPage() {
         </dl>
       </section>
 
-      <section className={styles.section} aria-labelledby="severity-heading">
-        <h2 id="severity-heading" className={styles.sectionTitle}>Severity Score</h2>
-        <SeverityBadge score={report.severityScore} />
-      </section>
-
-      <section className={styles.section} aria-labelledby="conformance-heading">
-        <h2 id="conformance-heading" className={styles.sectionTitle}>Conformance Scores</h2>
-        <ConformanceScoresPanel scores={report.conformanceScores} />
+      <section className={styles.section} aria-labelledby="evidence-heading">
+        <h2 id="evidence-heading" className={styles.sectionTitle}>Scan evidence</h2>
+        <div className={styles.evidenceGrid}>
+          <div className={styles.evidenceCard}>
+            <h3>Affected elements by axe impact</h3>
+            {Object.keys(report.affectedElementsByImpact).length === 0 ? (
+              <p>0 affected elements</p>
+            ) : (
+              <ul>
+                {Object.entries(report.affectedElementsByImpact).map(([impact, count]) => (
+                  <li key={impact}><span>{impact}</span><strong>{count}</strong></li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className={styles.evidenceCard}>
+            <h3>Distinct rules with findings</h3>
+            <p className={styles.evidenceCount}>{report.distinctRuleCount}</p>
+          </div>
+          <div className={styles.evidenceCard}>
+            <h3>WCAG criteria with findings</h3>
+            {report.wcagCriteriaWithFindings.length === 0 ? (
+              <p>No WCAG criteria with findings.</p>
+            ) : (
+              <ul className={styles.criteriaList}>
+                {report.wcagCriteriaWithFindings.map((criterion) => <li key={criterion}>{criterion}</li>)}
+              </ul>
+            )}
+            <p className={styles.reviewNote}>Criteria without findings are not confirmed as passed.</p>
+          </div>
+        </div>
       </section>
 
       <section className={styles.section} aria-labelledby="findings-heading">
         <h2 id="findings-heading" className={styles.sectionTitle}>
-          Findings ({report.findings.length})
+          Affected elements ({report.findings.length})
         </h2>
         <FindingsTable findings={report.findings} />
       </section>
+
+      <ManualReviewSection items={report.manualReviewItems} />
     </div>
   )
 }

@@ -24,7 +24,6 @@ import usv.dizertatie.playwright.PageCaptureService;
 import usv.dizertatie.playwright.PageNavigator;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
-import usv.dizertatie.scoring.SeverityScoringService;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -50,7 +49,6 @@ public class ScanService {
     private final AiAnalysisService aiAnalysisService;
     private final AiResponseParser aiResponseParser;
     private final PromptLoader promptLoader;
-    private final SeverityScoringService severityScoringService;
     private final FindingMergeService findingMergeService;
 
     /**
@@ -69,7 +67,6 @@ public class ScanService {
         List<ScanSummaryResponse> content = scanPage.getContent().stream()
                 .map(scan -> {
                     List<Finding> findings = findingRepository.findByScan(scan);
-                    double score = severityScoringService.score(findings);
                     java.time.Instant timestamp = scan.getTimestamp() != null
                             ? scan.getTimestamp().atZone(ZoneOffset.UTC).toInstant()
                             : null;
@@ -79,7 +76,6 @@ public class ScanService {
                             scan.getMethod(),
                             scan.getModelId(),
                             timestamp,
-                            score,
                             findings.size()
                     );
                 })
@@ -130,6 +126,7 @@ public class ScanService {
                 .method("AXE")
                 .axeVersion(AxeService.AXE_VERSION)
                 .browserVersion(browserVersion)
+                .rawAxeIncomplete(axeResultParser.incompleteAsJson(violationsJson))
                 .timestamp(LocalDateTime.now())
                 .build();
         scan = scanRepository.save(scan);
@@ -228,6 +225,7 @@ public class ScanService {
                 .method("COMBINED")
                 .axeVersion(AxeService.AXE_VERSION)
                 .browserVersion(browserVersion)
+                .rawAxeIncomplete(axeResultParser.incompleteAsJson(violationsJson))
                 .modelId(model.getModelId())
                 .promptVersion(promptLoader.getVersion())
                 .rawAiResponse(rawJson)

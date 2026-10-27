@@ -46,6 +46,7 @@ public class FindingMergeService {
                             .sourceMethod("COMBINED")
                             .wcagCriterion(axeFinding.getWcagCriterion())
                             .wcagLevel(axeFinding.getWcagLevel())
+                            .ruleId(axeFinding.getRuleId())
                             .severity(axeFinding.getSeverity())
                             .elementSelector(axeFinding.getElementSelector())
                             .description(axeFinding.getDescription())

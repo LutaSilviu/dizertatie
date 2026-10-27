@@ -9,7 +9,6 @@ interface ScanRecord {
   method: string
   model: string
   timestamp: string
-  severityScore: number
   findingCount: number
 }
 
@@ -89,7 +88,6 @@ function HistoryPage() {
                   <th>Method</th>
                   <th>Model</th>
                   <th>Timestamp</th>
-                  <th>Severity Score</th>
                   <th>Findings</th>
                 </tr>
               </thead>
@@ -103,7 +101,6 @@ function HistoryPage() {
                     <td>{scan.method}</td>
                     <td>{scan.model}</td>
                     <td>{new Date(scan.timestamp).toLocaleString()}</td>
-                    <td>{scan.severityScore}</td>
                     <td>{scan.findingCount}</td>
                   </tr>
                 ))}
