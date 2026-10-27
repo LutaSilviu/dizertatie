@@ -20,6 +20,7 @@ class FindingMergeServiceTest {
     private Finding axeFinding(String criterion, String selector) {
         return Finding.builder()
                 .sourceMethod("AXE")
+                .ruleId("image-alt")
                 .wcagCriterion(criterion)
                 .elementSelector(selector)
                 .description("Axe description")
@@ -48,6 +49,7 @@ class FindingMergeServiceTest {
         assertThat(result.get(0).getSourceMethod()).isEqualTo("COMBINED");
         // Axe data is preferred
         assertThat(result.get(0).getDescription()).isEqualTo("Axe description");
+        assertThat(result.get(0).getRuleId()).isEqualTo("image-alt");
         assertThat(result.get(0).getSeverity()).isEqualTo("critical");
     }
 

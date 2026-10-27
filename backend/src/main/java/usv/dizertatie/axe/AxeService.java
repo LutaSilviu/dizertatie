@@ -36,13 +36,13 @@ public class AxeService {
      * Injects axe-core into the given page and runs an accessibility audit.
      *
      * @param page the Playwright page to audit
-     * @return raw violations JSON string from axe.run()
+     * @return raw axe.run() result, including violations and incomplete items
      */
     public String run(Page page) {
         // addScriptTag evaluates in the page's global scope. Wrapping the source in
         // an arrow function body instead would scope axe-core's own `var axe` to that
         // function, leaving `axe` undefined by the time the audit call runs.
         page.addScriptTag(new Page.AddScriptTagOptions().setContent(axeScript));
-        return (String) page.evaluate("async () => { const r = await axe.run(document, " + RUN_OPTIONS + "); return JSON.stringify(r.violations); }");
+        return (String) page.evaluate("async () => { const r = await axe.run(document, " + RUN_OPTIONS + "); return JSON.stringify({ violations: r.violations, incomplete: r.incomplete }); }");
     }
 }

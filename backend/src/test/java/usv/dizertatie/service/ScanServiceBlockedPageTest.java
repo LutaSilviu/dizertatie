@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
+import usv.dizertatie.domain.Finding;
 import usv.dizertatie.playwright.PageBlockedException;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
@@ -15,6 +16,7 @@ import usv.dizertatie.repository.ScanRepository;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -43,6 +45,8 @@ class ScanServiceBlockedPageTest {
     private HttpServer server;
     private Playwright playwright;
     private ScanRepository scanRepository;
+    private FindingRepository findingRepository;
+    private AxeService axeService;
     private ScanService scanService;
 
     @BeforeEach
@@ -56,14 +60,23 @@ class ScanServiceBlockedPageTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/normal", exchange -> {
+            byte[] body = "<!doctype html><html lang='en'><title>Test</title><body>Page</body></html>"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/html; charset=UTF-8");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
         server.start();
 
         playwright = Playwright.create();
-        AxeService axeService = mock(AxeService.class);
+        axeService = mock(AxeService.class);
         when(axeService.run(any())).thenReturn("[]");
         scanRepository = mock(ScanRepository.class);
+        findingRepository = mock(FindingRepository.class);
         scanService = new ScanService(playwright.chromium(), axeService, new AxeResultParser(new ObjectMapper()),
-                scanRepository, mock(FindingRepository.class), null, null, null, null, null, null);
+                scanRepository, findingRepository, null, null, null, null, null);
     }
 
     @AfterEach
@@ -82,4 +95,26 @@ class ScanServiceBlockedPageTest {
 
         verify(scanRepository, never()).save(any());
     }
+
+    @Test
+    void runAxeScan_persistsManualReviewItemsAndRuleIdsForCompletedScan() {
+        String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/normal";
+        when(axeService.run(any())).thenReturn("""
+                {"violations":[{"id":"image-alt","impact":"critical","description":"Images need alt text",
+                  "tags":["wcag111"],"nodes":[{"target":["img.hero"]},{"target":["img.logo"]}]}],
+                 "incomplete":[{"id":"color-contrast","impact":"serious","description":"Review contrast",
+                   "help":"Review contrast","helpUrl":"https://example.com/help",
+                   "nodes":[{"target":[".hero"],"failureSummary":"Review image background"}]}]}
+                """);
+        when(scanRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var scan = scanService.runAxeScan(url);
+
+        assertThat(scan.getRawAxeIncomplete()).contains("color-contrast").contains("Review image background");
+        org.mockito.ArgumentCaptor<java.util.List<Finding>> findings = org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+        verify(findingRepository).saveAll(findings.capture());
+        assertThat(findings.getValue()).hasSize(2)
+                .extracting(Finding::getRuleId).containsOnly("image-alt");
+    }
+
 }

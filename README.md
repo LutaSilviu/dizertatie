@@ -96,12 +96,9 @@ Runs both AXE and AI analysis then merges the results. Duplicate findings (same 
 
 ---
 
-## WCAG Scoring
+## Scan report evidence
 
-Each analysis produces two complementary scores:
-
-- **Severity score (0–100)** — weighted aggregate of violation impact levels; 100 means no issues found.
-- **Conformance pass rates** — percentage of criteria that pass at each conformance level (Level A, AA, AAA).
+Completed axe-core reports show affected elements grouped by axe impact, the number of distinct rules with findings, and WCAG criteria associated with findings. They also show axe-core checks that need manual review separately from violations. The report does not calculate a composite severity score or WCAG pass percentages; absence of automated findings does not establish that a criterion passes.
 
 ---
 

@@ -107,92 +107,88 @@
   border-bottom: 2px solid #e2e8f0;
 }
 
-/* Severity score */
-.severityWrapper {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.severityBar {
-  flex: 1;
-  min-width: 160px;
-  max-width: 360px;
-  height: 14px;
-  background: #e2e8f0;
-  border-radius: 7px;
-  overflow: hidden;
-}
-
-.severityFill {
-  height: 100%;
-  border-radius: 7px;
-  transition: width 0.4s ease;
-}
-
-.severityGreen {
-  background-color: #38a169;
-  color: #276749;
-}
-
-.severityAmber {
-  background-color: #dd6b20;
-  color: #7b341e;
-}
-
-.severityRed {
-  background-color: #e53e3e;
-  color: #822727;
-}
-
-.severityBadge {
-  font-size: 0.95rem;
-  font-weight: 600;
-  padding: 0.25rem 0.75rem;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.07);
-}
-
-/* Conformance scores */
-.conformancePanel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.conformanceItem {
+.evidenceGrid {
   display: grid;
-  grid-template-columns: 90px 60px 1fr;
-  align-items: center;
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
 }
 
-.conformanceLabel {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #4a5568;
+.evidenceCard {
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f7fafc;
 }
 
-.conformanceValue {
+.evidenceCard h3 {
+  margin: 0 0 0.75rem;
   font-size: 0.95rem;
-  font-weight: 700;
   color: #2d3748;
-  text-align: right;
 }
 
-.conformanceBar {
-  height: 10px;
-  background: #e2e8f0;
-  border-radius: 5px;
-  overflow: hidden;
+.evidenceCard p {
+  margin: 0.35rem 0;
 }
 
-.conformanceFill {
-  height: 100%;
-  background: #2b6cb0;
-  border-radius: 5px;
-  transition: width 0.4s ease;
+.evidenceCard ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.evidenceCard li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.25rem 0;
+  text-transform: capitalize;
+}
+
+.evidenceCount {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.criteriaList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.criteriaList li {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: #bee3f8;
+  color: #2a4365;
+}
+
+.reviewNote {
+  color: #718096;
+  font-size: 0.85rem;
+}
+
+.reviewList,
+.reviewElements {
+  display: grid;
+  gap: 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.reviewItem {
+  padding: 0.85rem 1rem;
+  border: 1px solid #ecc94b;
+  border-radius: 8px;
+  background: #fffff0;
+}
+
+.reviewItem h3,
+.reviewItem p {
+  margin: 0.35rem 0;
+}
+
+.reviewItem h3 {
+  color: #744210;
 }
 
 /* Findings table */
@@ -345,20 +341,6 @@
     font-size: 1.1rem;
   }
 
-  .conformanceItem {
-    grid-template-columns: 80px 55px 1fr;
-    gap: 0.5rem;
-  }
-
-  .severityWrapper {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .severityBar {
-    width: 100%;
-    max-width: 100%;
-  }
 }
 
 /* Dark mode */
@@ -385,28 +367,24 @@
     border-color: #2d3748;
   }
 
-  .severityBar {
-    background: #2d3748;
+  .evidenceCard {
+    background: #1a202c;
+    border-color: #2d3748;
   }
 
-  .severityBadge {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .conformanceBar {
-    background: #2d3748;
-  }
-
-  .conformanceFill {
-    background: #63b3ed;
-  }
-
-  .conformanceLabel {
-    color: #a0aec0;
-  }
-
-  .conformanceValue {
+  .evidenceCard h3,
+  .evidenceCard p {
     color: #e2e8f0;
+  }
+
+  .reviewItem {
+    background: #2d2415;
+    border-color: #975a16;
+    color: #fefcbf;
+  }
+
+  .reviewItem h3 {
+    color: #fefcbf;
   }
 
   .tableWrapper {

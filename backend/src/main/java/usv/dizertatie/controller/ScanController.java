@@ -13,15 +13,16 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
 import usv.dizertatie.export.CsvSerializer;
-import usv.dizertatie.scoring.ConformanceScoringService;
-import usv.dizertatie.scoring.ConformanceScores;
-import usv.dizertatie.scoring.SeverityScoringService;
 import usv.dizertatie.service.ScanService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 @RestController
 @RequestMapping("/scans")
@@ -30,8 +31,7 @@ import java.util.List;
 public class ScanController {
 
     private final ScanService scanService;
-    private final SeverityScoringService severityScoringService;
-    private final ConformanceScoringService conformanceScoringService;
+    private final AxeResultParser axeResultParser;
     private final CsvSerializer csvSerializer;
 
     @Operation(
@@ -143,6 +143,7 @@ public class ScanController {
                         f.getSourceMethod(),
                         f.getWcagCriterion(),
                         f.getWcagLevel(),
+                        f.getRuleId(),
                         f.getSeverity(),
                         f.getElementSelector(),
                         f.getDescription()
@@ -153,17 +154,36 @@ public class ScanController {
                 ? scan.getTimestamp().atZone(java.time.ZoneOffset.UTC).toInstant()
                 : null;
 
-        double severityScore = severityScoringService.score(findings);
-        ConformanceScores conformanceScores = conformanceScoringService.score(findings);
+        List<Finding> axeFindings = findings.stream()
+                .filter(f -> "AXE".equalsIgnoreCase(f.getSourceMethod())
+                        || "COMBINED".equalsIgnoreCase(f.getSourceMethod()))
+                .toList();
+        Map<String, Long> affectedElementsByImpact = new TreeMap<>();
+        axeFindings.forEach(f -> affectedElementsByImpact.merge(
+                f.getSeverity() == null ? "unknown" : f.getSeverity().toLowerCase(), 1L, Long::sum));
+        int distinctRuleCount = (int) axeFindings.stream()
+                .map(Finding::getRuleId)
+                .filter(ruleId -> ruleId != null && !ruleId.isBlank())
+                .distinct()
+                .count();
+        List<String> wcagCriteria = findings.stream()
+                .map(Finding::getWcagCriterion)
+                .filter(criterion -> criterion != null && !criterion.isBlank())
+                .collect(java.util.stream.Collectors.toCollection(TreeSet::new))
+                .stream().toList();
+        List<usv.dizertatie.axe.ManualReviewItem> manualReviewItems = axeResultParser.parseIncomplete(
+                scan.getRawAxeIncomplete() == null ? "[]" : scan.getRawAxeIncomplete());
 
         return new ScanResponse(
                 scan.getId(),
                 scan.getUrl(),
                 scan.getMethod(),
                 timestamp,
-                severityScore,
-                conformanceScores,
-                findingResponses
+                affectedElementsByImpact,
+                distinctRuleCount,
+                wcagCriteria,
+                findingResponses,
+                manualReviewItems
         );
     }
 }

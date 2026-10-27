@@ -8,6 +8,7 @@ import usv.dizertatie.domain.Finding;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.StreamSupport;
 import java.util.regex.Pattern;
 
 /**
@@ -34,7 +35,8 @@ public class AxeResultParser {
     public List<Finding> parse(String rawJson) {
         List<Finding> findings = new ArrayList<>();
         try {
-            JsonNode violations = objectMapper.readTree(rawJson);
+            JsonNode result = objectMapper.readTree(rawJson);
+            JsonNode violations = result.isArray() ? result : result.path("violations");
             for (JsonNode violation : violations) {
                 findings.addAll(parseViolation(violation));
             }
@@ -44,6 +46,55 @@ public class AxeResultParser {
         return findings;
     }
 
+    /** Parses axe-core results that require human review without treating them as violations. */
+    public List<ManualReviewItem> parseIncomplete(String rawJson) {
+        try {
+            JsonNode result = objectMapper.readTree(rawJson);
+            JsonNode incomplete = result.isArray() ? result : result.path("incomplete");
+            if (!incomplete.isArray()) return List.of();
+            List<ManualReviewItem> items = new ArrayList<>();
+            for (JsonNode rule : incomplete) {
+                List<ManualReviewElement> elements = new ArrayList<>();
+                JsonNode nodes = rule.path("nodes");
+                if (nodes.isArray()) {
+                    for (JsonNode node : nodes) {
+                        elements.add(new ManualReviewElement(
+                                node.path("target").isArray()
+                                        ? String.join(" ", StreamSupport.stream(node.path("target").spliterator(), false)
+                                                .map(JsonNode::asText).toList())
+                                        : "",
+                                node.path("html").asText(""),
+                                node.path("failureSummary").asText("")
+                        ));
+                    }
+                }
+                items.add(new ManualReviewItem(
+                        rule.path("id").asText(""),
+                        rule.path("description").asText(""),
+                        rule.path("impact").asText(""),
+                        rule.path("help").asText(""),
+                        rule.path("helpUrl").asText(""),
+                        List.copyOf(elements)
+                ));
+            }
+            return items;
+        } catch (Exception e) {
+            throw new AxeParseException("Failed to parse Axe incomplete results", e);
+        }
+    }
+
+    /** Stores only the incomplete portion of axe's result for the persisted scan. */
+    public String incompleteAsJson(String rawJson) {
+        try {
+            JsonNode result = objectMapper.readTree(rawJson);
+            JsonNode incomplete = result.isArray() ? objectMapper.createArrayNode() : result.path("incomplete");
+            if (!incomplete.isArray()) incomplete = objectMapper.createArrayNode();
+            return objectMapper.writeValueAsString(incomplete);
+        } catch (Exception e) {
+            throw new AxeParseException("Failed to extract Axe incomplete results", e);
+        }
+    }
+
     private List<Finding> parseViolation(JsonNode violation) {
         String id = violation.path("id").asText("");
         String description = violation.path("description").asText("");
@@ -51,7 +102,7 @@ public class AxeResultParser {
         JsonNode tags = violation.path("tags");
         JsonNode nodes = violation.path("nodes");
 
-        String wcagCriterion = extractWcagCriterion(tags, id);
+        String wcagCriterion = extractWcagCriterion(tags);
         String wcagLevel = extractWcagLevel(tags);
 
         List<Finding> findings = new ArrayList<>();
@@ -59,17 +110,17 @@ public class AxeResultParser {
         if (nodes.isArray() && nodes.size() > 0) {
             for (JsonNode node : nodes) {
                 String elementSelector = extractSelector(node);
-                findings.add(buildFinding(wcagCriterion, wcagLevel, impact, elementSelector, description));
+                findings.add(buildFinding(id, wcagCriterion, wcagLevel, impact, elementSelector, description));
             }
         } else {
             // No nodes — produce one finding with empty selector
-            findings.add(buildFinding(wcagCriterion, wcagLevel, impact, "", description));
+            findings.add(buildFinding(id, wcagCriterion, wcagLevel, impact, "", description));
         }
 
         return findings;
     }
 
-    private String extractWcagCriterion(JsonNode tags, String fallback) {
+    private String extractWcagCriterion(JsonNode tags) {
         if (tags.isArray()) {
             for (JsonNode tag : tags) {
                 String tagText = tag.asText("");
@@ -81,7 +132,7 @@ public class AxeResultParser {
                 }
             }
         }
-        return fallback;
+        return null;
     }
 
     /**
@@ -117,11 +168,12 @@ public class AxeResultParser {
         return "";
     }
 
-    private Finding buildFinding(String wcagCriterion, String wcagLevel,
+    private Finding buildFinding(String ruleId, String wcagCriterion, String wcagLevel,
                                   String severity, String elementSelector,
                                   String description) {
         return Finding.builder()
                 .sourceMethod("AXE")
+                .ruleId(ruleId)
                 .wcagCriterion(wcagCriterion)
                 .wcagLevel(wcagLevel)
                 .severity(severity)

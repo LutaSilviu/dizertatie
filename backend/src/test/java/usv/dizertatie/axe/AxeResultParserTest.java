@@ -96,6 +96,47 @@ class AxeResultParserTest {
     }
 
     @Test
+    void parsesRuleIdsAndIncompleteItemsFromAxeRunResult() {
+        String json = """
+                {
+                  "violations": [{
+                    "id": "image-alt",
+                    "impact": "critical",
+                    "description": "Images need alternate text",
+                    "tags": ["wcag111"],
+                    "nodes": [{"target": ["img.hero"]}, {"target": ["img.logo"]}]
+                  }],
+                  "incomplete": [{
+                    "id": "color-contrast",
+                    "impact": "serious",
+                    "description": "Contrast needs manual review",
+                    "help": "Review contrast",
+                    "helpUrl": "https://example.com/help",
+                    "nodes": [{
+                      "target": [".hero"],
+                      "html": "<p class=\\\"hero\\\">Text</p>",
+                      "failureSummary": "Check the background image manually"
+                    }]
+                  }]
+                }
+                """;
+
+        List<Finding> findings = parser.parse(json);
+        List<ManualReviewItem> manualReviewItems = parser.parseIncomplete(json);
+
+        assertThat(findings).hasSize(2);
+        assertThat(findings).extracting(Finding::getRuleId).containsOnly("image-alt");
+        assertThat(manualReviewItems).hasSize(1);
+        assertThat(manualReviewItems.get(0).ruleId()).isEqualTo("color-contrast");
+        assertThat(manualReviewItems.get(0).impact()).isEqualTo("serious");
+        assertThat(manualReviewItems.get(0).elements()).singleElement()
+                .satisfies(element -> {
+                    assertThat(element.target()).isEqualTo(".hero");
+                    assertThat(element.failureSummary()).isEqualTo("Check the background image manually");
+                });
+    }
+
+    @Test
     void emptyJsonArrayProducesEmptyList() {
         List<Finding> findings = parser.parse("[]");
         assertThat(findings).isEmpty();
@@ -121,7 +162,7 @@ class AxeResultParserTest {
     }
 
     @Test
-    void violationWithNoWcagTagFallsBackToId() {
+    void violationWithNoWcagTagHasNoWcagCriterionButKeepsRuleId() {
         String json = """
                 [
                   {
@@ -135,6 +176,7 @@ class AxeResultParserTest {
                 """;
         List<Finding> findings = parser.parse(json);
         assertThat(findings).hasSize(1);
-        assertThat(findings.get(0).getWcagCriterion()).isEqualTo("aria-required-attr");
+        assertThat(findings.get(0).getWcagCriterion()).isNull();
+        assertThat(findings.get(0).getRuleId()).isEqualTo("aria-required-attr");
     }
 }

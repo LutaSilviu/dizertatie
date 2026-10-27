@@ -59,7 +59,7 @@ class ScanControllerTest {
     void getScans_withValidApiKey_returns200AndJsonArray() throws Exception {
         ScanSummaryResponse item = new ScanSummaryResponse(
                 1L, "https://example.com", "AXE", null,
-                Instant.now(), 85.0, 3L
+                Instant.now(), 3L
         );
         ScanHistoryResponse history = new ScanHistoryResponse(List.of(item), 0, 20, 1L);
 
@@ -80,7 +80,7 @@ class ScanControllerTest {
     void getScans_responseItemsContainExpectedFields() throws Exception {
         ScanSummaryResponse item = new ScanSummaryResponse(
                 42L, "https://example.com/page", "AXE", null,
-                Instant.parse("2026-10-01T10:00:00Z"), 76.3, 12L
+                Instant.parse("2026-10-01T10:00:00Z"), 12L
         );
         ScanHistoryResponse history = new ScanHistoryResponse(List.of(item), 0, 20, 1L);
 
@@ -93,7 +93,7 @@ class ScanControllerTest {
                 .andExpect(jsonPath("$.content[0].url").value("https://example.com/page"))
                 .andExpect(jsonPath("$.content[0].method").value("AXE"))
                 .andExpect(jsonPath("$.content[0].timestamp").isNotEmpty())
-                .andExpect(jsonPath("$.content[0].severityScore").value(76.3))
+                .andExpect(jsonPath("$.content[0].severityScore").doesNotExist())
                 .andExpect(jsonPath("$.content[0].findingCount").value(12));
     }
 
@@ -159,7 +159,7 @@ class ScanControllerTest {
     }
 
     @Test
-    void getScansById_responseIncludesSeverityScore() throws Exception {
+    void getScansById_reportsAxeEvidenceWithoutCompositeScores() throws Exception {
         Scan scan = Scan.builder()
                 .id(2L)
                 .url("https://example.com")
@@ -174,9 +174,16 @@ class ScanControllerTest {
                 .wcagCriterion("1.1.1")
                 .wcagLevel("A")
                 .severity("serious")
+                .ruleId("image-alt")
                 .elementSelector("img")
                 .description("Missing alt text")
                 .build();
+
+        scan.setRawAxeIncomplete("""
+                [{"id":"color-contrast","impact":"serious","description":"Check contrast",
+                  "help":"Review contrast","helpUrl":"https://example.com/help",
+                  "nodes":[{"target":[".hero"],"failureSummary":"Review the image background"}]}]
+                """);
 
         when(scanService.findById(2L)).thenReturn(scan);
         when(scanService.findingsForScan(scan)).thenReturn(List.of(finding));
@@ -185,11 +192,17 @@ class ScanControllerTest {
                         .header("X-API-Key", API_KEY))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.severityScore").isNumber());
+                .andExpect(jsonPath("$.severityScore").doesNotExist())
+                .andExpect(jsonPath("$.conformanceScores").doesNotExist())
+                .andExpect(jsonPath("$.affectedElementsByImpact.serious").value(1))
+                .andExpect(jsonPath("$.distinctRuleCount").value(1))
+                .andExpect(jsonPath("$.wcagCriteriaWithFindings[0]").value("1.1.1"))
+                .andExpect(jsonPath("$.manualReviewItems[0].ruleId").value("color-contrast"))
+                .andExpect(jsonPath("$.manualReviewItems[0].elements[0].target").value(".hero"));
     }
 
     @Test
-    void getScansById_responseIncludesConformanceScores() throws Exception {
+    void getScansById_completedWithoutFindingsReturnsExplicitEmptyEvidence() throws Exception {
         Scan scan = Scan.builder()
                 .id(3L)
                 .url("https://example.com")
@@ -197,28 +210,17 @@ class ScanControllerTest {
                 .timestamp(LocalDateTime.now())
                 .build();
 
-        Finding finding = Finding.builder()
-                .id(30L)
-                .scan(scan)
-                .sourceMethod("AXE")
-                .wcagCriterion("1.1.1")
-                .wcagLevel("A")
-                .severity("serious")
-                .elementSelector("img")
-                .description("Missing alt text")
-                .build();
-
         when(scanService.findById(3L)).thenReturn(scan);
-        when(scanService.findingsForScan(scan)).thenReturn(List.of(finding));
+        when(scanService.findingsForScan(scan)).thenReturn(List.of());
 
         mockMvc.perform(get("/scans/3")
                         .header("X-API-Key", API_KEY))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.conformanceScores").exists())
-                .andExpect(jsonPath("$.conformanceScores.levelA").isNumber())
-                .andExpect(jsonPath("$.conformanceScores.levelAA").isNumber())
-                .andExpect(jsonPath("$.conformanceScores.levelAAA").isNumber());
+                .andExpect(jsonPath("$.findings").isEmpty())
+                .andExpect(jsonPath("$.distinctRuleCount").value(0))
+                .andExpect(jsonPath("$.wcagCriteriaWithFindings").isEmpty())
+                .andExpect(jsonPath("$.manualReviewItems").isEmpty());
     }
 
     @Test
@@ -258,7 +260,7 @@ class ScanControllerTest {
                         .header("X-API-Key", API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                { "url": "https://example.com", "method": "AI" }
+                                { "url": "https://example.com", "method": "AI", "model": "gpt-4o-mini" }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -283,7 +285,7 @@ class ScanControllerTest {
                         .header("X-API-Key", API_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                { "url": "https://example.com", "method": "COMBINED" }
+                                { "url": "https://example.com", "method": "COMBINED", "model": "gpt-4o-mini" }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
