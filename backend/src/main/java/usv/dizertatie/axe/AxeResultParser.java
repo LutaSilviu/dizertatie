@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class AxeResultParser {
 
-    private static final Pattern WCAG_CRITERION_TAG = Pattern.compile("^wcag(\\d)(\\d+)$");
+    private static final Pattern WCAG_CRITERION_TAG = Pattern.compile("^wcag(\\d)(\\d)(\\d+)$");
 
     private final ObjectMapper objectMapper;
 
@@ -126,26 +126,13 @@ public class AxeResultParser {
                 String tagText = tag.asText("");
                 var matcher = WCAG_CRITERION_TAG.matcher(tagText);
                 if (matcher.matches()) {
-                    // "wcag111" → "1.1.1", "wcag143" → "1.4.3"
-                    String digits = tagText.substring(4); // strip "wcag"
-                    return formatWcagCriterion(digits);
+                    // axe tags concatenate the principle, guideline, and full criterion number:
+                    // "wcag111" → "1.1.1", "wcag2110" → "2.1.10".
+                    return matcher.group(1) + "." + matcher.group(2) + "." + matcher.group(3);
                 }
             }
         }
         return null;
-    }
-
-    /**
-     * Converts a raw digit string from a wcag tag into dotted notation.
-     * E.g. "111" → "1.1.1", "143" → "1.4.3", "21" → "2.1"
-     */
-    private String formatWcagCriterion(String digits) {
-        if (digits.length() == 3) {
-            return digits.charAt(0) + "." + digits.charAt(1) + "." + digits.charAt(2);
-        } else if (digits.length() == 2) {
-            return digits.charAt(0) + "." + digits.charAt(1);
-        }
-        return digits;
     }
 
     private String extractWcagLevel(JsonNode tags) {

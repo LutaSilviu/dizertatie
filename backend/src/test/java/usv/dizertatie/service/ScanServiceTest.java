@@ -1,6 +1,10 @@
 package usv.dizertatie.service;
 
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.Page;
+import org.mockito.MockedStatic;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +23,7 @@ import usv.dizertatie.domain.Scan;
 import usv.dizertatie.domain.ScanStatus;
 import usv.dizertatie.playwright.PageCapture;
 import usv.dizertatie.playwright.PageCaptureService;
+import usv.dizertatie.playwright.PageNavigator;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
 
@@ -32,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(MockitoExtension.class)
 class ScanServiceTest {
@@ -71,6 +77,30 @@ class ScanServiceTest {
         assertThat(captor.getValue().screenshotPng())
                 .as("the screenshot captured from the page must reach the AI analysis")
                 .isEqualTo(SCREENSHOT);
+    }
+
+    @Test
+    void runAxeScan_persistsTheVersionOfTheEmbeddedEngine() {
+        Browser browser = org.mockito.Mockito.mock(Browser.class);
+        BrowserContext context = org.mockito.Mockito.mock(BrowserContext.class);
+        Page page = org.mockito.Mockito.mock(Page.class);
+        when(browserType.launch(any(BrowserType.LaunchOptions.class))).thenReturn(browser);
+        when(browser.newContext(any(Browser.NewContextOptions.class))).thenReturn(context);
+        when(context.newPage()).thenReturn(page);
+        when(browser.browserType()).thenReturn(browserType);
+        when(browser.version()).thenReturn("test-version");
+        when(axeService.run(page)).thenReturn("{\"violations\":[],\"incomplete\":[]}");
+        when(axeResultParser.parse(anyString())).thenReturn(List.of());
+        when(axeResultParser.incompleteAsJson(anyString())).thenReturn("[]");
+        when(scanRepository.save(any(Scan.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        try (MockedStatic<PageNavigator> navigator = mockStatic(PageNavigator.class)) {
+            Scan scan = scanService.runAxeScan(URL);
+
+            assertThat(scan.getAxeVersion()).isEqualTo("4.14.0");
+            assertThat(scan.getStatus()).isEqualTo(ScanStatus.COMPLETED);
+            navigator.verify(() -> PageNavigator.open(page, URL));
+        }
     }
 
     @Test

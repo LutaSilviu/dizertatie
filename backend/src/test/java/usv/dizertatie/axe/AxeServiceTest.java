@@ -6,11 +6,25 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import org.springframework.core.io.ClassPathResource;
 import org.junit.jupiter.api.Test;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AxeServiceTest {
+
+    @Test
+    void embeddedEngineVersionAndConfiguredWcagTagsMatchScanMetadata() throws Exception {
+        String engine = new ClassPathResource("axe/axe.min.js")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(engine).contains("axe.version=\"" + AxeService.AXE_VERSION + "\"");
+        assertThat(AxeService.AXE_VERSION).isEqualTo("4.14.0");
+        assertThat(AxeService.WCAG_TAGS)
+                .containsExactly("wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa");
+    }
 
     @Test
     void run_reportsImageWithoutAltTextAsViolation() throws Exception {

@@ -1,0 +1,829 @@
+﻿{
+    "comparisonDate":  "2026-10-28",
+    "baselineEngineVersion":  "4.9.0",
+    "candidateEngineVersion":  "4.14.0",
+    "configuredTags":  [
+                           "wcag2a",
+                           "wcag2aa",
+                           "wcag21a",
+                           "wcag21aa",
+                           "wcag22aa"
+                       ],
+    "navigation":  "DOMContentLoaded, 20-second timeout; 750 ms bounded stabilization; fresh page per URL",
+    "urls":  [
+                 {
+                     "url":  "https://www.nasa.gov/",
+                     "baseline":  {
+                                      "url":  "https://www.nasa.gov/",
+                                      "status":  "COMPLETED",
+                                      "httpStatus":  200,
+                                      "reason":  null,
+                                      "violationRuleCount":  0,
+                                      "affectedElementsByImpact":  {
+
+                                                                   },
+                                      "wcagCriteriaWithFindings":  [
+
+                                                                   ],
+                                      "violations":  [
+
+                                                     ],
+                                      "incompleteRuleCount":  2,
+                                      "manualReview":  [
+                                                           {
+                                                               "id":  "aria-roledescription",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  1,
+                                                               "wcagCriteria":  [
+                                                                                    "4.1.2"
+                                                                                ]
+                                                           },
+                                                           {
+                                                               "id":  "color-contrast",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  40,
+                                                               "wcagCriteria":  [
+                                                                                    "1.4.3"
+                                                                                ]
+                                                           }
+                                                       ],
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.nasa.gov/",
+                                       "status":  "COMPLETED",
+                                       "httpStatus":  200,
+                                       "reason":  null,
+                                       "violationRuleCount":  0,
+                                       "affectedElementsByImpact":  {
+
+                                                                    },
+                                       "wcagCriteriaWithFindings":  [
+
+                                                                    ],
+                                       "violations":  [
+
+                                                      ],
+                                       "incompleteRuleCount":  1,
+                                       "manualReview":  [
+                                                            {
+                                                                "id":  "color-contrast",
+                                                                "impact":  "serious",
+                                                                "affectedElements":  40,
+                                                                "wcagCriteria":  [
+                                                                                     "1.4.3"
+                                                                                 ]
+                                                            }
+                                                        ],
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://www.apple.com/",
+                     "baseline":  {
+                                      "url":  "https://www.apple.com/",
+                                      "status":  "COMPLETED",
+                                      "httpStatus":  200,
+                                      "reason":  null,
+                                      "violationRuleCount":  3,
+                                      "affectedElementsByImpact":  {
+                                                                       "critical":  2,
+                                                                       "serious":  12
+                                                                   },
+                                      "wcagCriteriaWithFindings":  [
+                                                                       "1.3.1",
+                                                                       "1.4.3",
+                                                                       "2.5.8"
+                                                                   ],
+                                      "violations":  [
+                                                         {
+                                                             "id":  "aria-required-children",
+                                                             "impact":  "critical",
+                                                             "affectedElements":  2,
+                                                             "wcagCriteria":  [
+                                                                                  "1.3.1"
+                                                                              ]
+                                                         },
+                                                         {
+                                                             "id":  "color-contrast",
+                                                             "impact":  "serious",
+                                                             "affectedElements":  1,
+                                                             "wcagCriteria":  [
+                                                                                  "1.4.3"
+                                                                              ]
+                                                         },
+                                                         {
+                                                             "id":  "target-size",
+                                                             "impact":  "serious",
+                                                             "affectedElements":  11,
+                                                             "wcagCriteria":  [
+                                                                                  "2.5.8"
+                                                                              ]
+                                                         }
+                                                     ],
+                                      "incompleteRuleCount":  3,
+                                      "manualReview":  [
+                                                           {
+                                                               "id":  "aria-prohibited-attr",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  2,
+                                                               "wcagCriteria":  [
+                                                                                    "4.1.2"
+                                                                                ]
+                                                           },
+                                                           {
+                                                               "id":  "color-contrast",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  39,
+                                                               "wcagCriteria":  [
+                                                                                    "1.4.3"
+                                                                                ]
+                                                           },
+                                                           {
+                                                               "id":  "duplicate-id-aria",
+                                                               "impact":  "critical",
+                                                               "affectedElements":  9,
+                                                               "wcagCriteria":  [
+                                                                                    "4.1.2"
+                                                                                ]
+                                                           }
+                                                       ],
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.apple.com/",
+                                       "status":  "COMPLETED",
+                                       "httpStatus":  200,
+                                       "reason":  null,
+                                       "violationRuleCount":  4,
+                                       "affectedElementsByImpact":  {
+                                                                        "critical":  2,
+                                                                        "serious":  13
+                                                                    },
+                                       "wcagCriteriaWithFindings":  [
+                                                                        "1.3.1",
+                                                                        "1.4.3",
+                                                                        "2.5.3",
+                                                                        "2.5.8"
+                                                                    ],
+                                       "violations":  [
+                                                          {
+                                                              "id":  "aria-required-children",
+                                                              "impact":  "critical",
+                                                              "affectedElements":  2,
+                                                              "wcagCriteria":  [
+                                                                                   "1.3.1"
+                                                                               ]
+                                                          },
+                                                          {
+                                                              "id":  "color-contrast",
+                                                              "impact":  "serious",
+                                                              "affectedElements":  1,
+                                                              "wcagCriteria":  [
+                                                                                   "1.4.3"
+                                                                               ]
+                                                          },
+                                                          {
+                                                              "id":  "label-content-name-mismatch",
+                                                              "impact":  "serious",
+                                                              "affectedElements":  1,
+                                                              "wcagCriteria":  [
+                                                                                   "2.5.3"
+                                                                               ]
+                                                          },
+                                                          {
+                                                              "id":  "target-size",
+                                                              "impact":  "serious",
+                                                              "affectedElements":  11,
+                                                              "wcagCriteria":  [
+                                                                                   "2.5.8"
+                                                                               ]
+                                                          }
+                                                      ],
+                                       "incompleteRuleCount":  4,
+                                       "manualReview":  [
+                                                            {
+                                                                "id":  "aria-prohibited-attr",
+                                                                "impact":  "serious",
+                                                                "affectedElements":  2,
+                                                                "wcagCriteria":  [
+                                                                                     "4.1.2"
+                                                                                 ]
+                                                            },
+                                                            {
+                                                                "id":  "aria-valid-attr-value",
+                                                                "impact":  "critical",
+                                                                "affectedElements":  1,
+                                                                "wcagCriteria":  [
+                                                                                     "4.1.2"
+                                                                                 ]
+                                                            },
+                                                            {
+                                                                "id":  "color-contrast",
+                                                                "impact":  "serious",
+                                                                "affectedElements":  39,
+                                                                "wcagCriteria":  [
+                                                                                     "1.4.3"
+                                                                                 ]
+                                                            },
+                                                            {
+                                                                "id":  "duplicate-id-aria",
+                                                                "impact":  "critical",
+                                                                "affectedElements":  9,
+                                                                "wcagCriteria":  [
+                                                                                     "4.1.2"
+                                                                                 ]
+                                                            }
+                                                        ],
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://www.microsoft.com/",
+                     "baseline":  {
+                                      "url":  "https://www.microsoft.com/",
+                                      "status":  "COMPLETED",
+                                      "httpStatus":  200,
+                                      "reason":  null,
+                                      "violationRuleCount":  0,
+                                      "affectedElementsByImpact":  {
+
+                                                                   },
+                                      "wcagCriteriaWithFindings":  [
+
+                                                                   ],
+                                      "violations":  [
+
+                                                     ],
+                                      "incompleteRuleCount":  3,
+                                      "manualReview":  [
+                                                           {
+                                                               "id":  "aria-allowed-attr",
+                                                               "impact":  "critical",
+                                                               "affectedElements":  1,
+                                                               "wcagCriteria":  [
+                                                                                    "4.1.2"
+                                                                                ]
+                                                           },
+                                                           {
+                                                               "id":  "aria-prohibited-attr",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  5,
+                                                               "wcagCriteria":  [
+                                                                                    "4.1.2"
+                                                                                ]
+                                                           },
+                                                           {
+                                                               "id":  "color-contrast",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  35,
+                                                               "wcagCriteria":  [
+                                                                                    "1.4.3"
+                                                                                ]
+                                                           }
+                                                       ],
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.microsoft.com/",
+                                       "status":  "COMPLETED",
+                                       "httpStatus":  200,
+                                       "reason":  null,
+                                       "violationRuleCount":  1,
+                                       "affectedElementsByImpact":  {
+                                                                        "serious":  3
+                                                                    },
+                                       "wcagCriteriaWithFindings":  [
+                                                                        "2.5.3"
+                                                                    ],
+                                       "violations":  [
+                                                          {
+                                                              "id":  "label-content-name-mismatch",
+                                                              "impact":  "serious",
+                                                              "affectedElements":  3,
+                                                              "wcagCriteria":  [
+                                                                                   "2.5.3"
+                                                                               ]
+                                                          }
+                                                      ],
+                                       "incompleteRuleCount":  2,
+                                       "manualReview":  [
+                                                            {
+                                                                "id":  "aria-allowed-attr",
+                                                                "impact":  "critical",
+                                                                "affectedElements":  1,
+                                                                "wcagCriteria":  [
+                                                                                     "4.1.2"
+                                                                                 ]
+                                                            },
+                                                            {
+                                                                "id":  "color-contrast",
+                                                                "impact":  "serious",
+                                                                "affectedElements":  2,
+                                                                "wcagCriteria":  [
+                                                                                     "1.4.3"
+                                                                                 ]
+                                                            }
+                                                        ],
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://www.bbc.com/",
+                     "baseline":  {
+                                      "url":  "https://www.bbc.com/",
+                                      "status":  "COMPLETED",
+                                      "httpStatus":  200,
+                                      "reason":  null,
+                                      "violationRuleCount":  1,
+                                      "affectedElementsByImpact":  {
+                                                                       "serious":  1
+                                                                   },
+                                      "wcagCriteriaWithFindings":  [
+                                                                       "1.4.1"
+                                                                   ],
+                                      "violations":  [
+                                                         {
+                                                             "id":  "link-in-text-block",
+                                                             "impact":  "serious",
+                                                             "affectedElements":  1,
+                                                             "wcagCriteria":  [
+                                                                                  "1.4.1"
+                                                                              ]
+                                                         }
+                                                     ],
+                                      "incompleteRuleCount":  2,
+                                      "manualReview":  [
+                                                           {
+                                                               "id":  "aria-prohibited-attr",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  3,
+                                                               "wcagCriteria":  [
+                                                                                    "4.1.2"
+                                                                                ]
+                                                           },
+                                                           {
+                                                               "id":  "color-contrast",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  45,
+                                                               "wcagCriteria":  [
+                                                                                    "1.4.3"
+                                                                                ]
+                                                           }
+                                                       ],
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.bbc.com/",
+                                       "status":  "COMPLETED",
+                                       "httpStatus":  200,
+                                       "reason":  null,
+                                       "violationRuleCount":  2,
+                                       "affectedElementsByImpact":  {
+                                                                        "serious":  25
+                                                                    },
+                                       "wcagCriteriaWithFindings":  [
+                                                                        "1.4.1",
+                                                                        "2.5.3"
+                                                                    ],
+                                       "violations":  [
+                                                          {
+                                                              "id":  "label-content-name-mismatch",
+                                                              "impact":  "serious",
+                                                              "affectedElements":  24,
+                                                              "wcagCriteria":  [
+                                                                                   "2.5.3"
+                                                                               ]
+                                                          },
+                                                          {
+                                                              "id":  "link-in-text-block",
+                                                              "impact":  "serious",
+                                                              "affectedElements":  1,
+                                                              "wcagCriteria":  [
+                                                                                   "1.4.1"
+                                                                               ]
+                                                          }
+                                                      ],
+                                       "incompleteRuleCount":  1,
+                                       "manualReview":  [
+                                                            {
+                                                                "id":  "color-contrast",
+                                                                "impact":  "serious",
+                                                                "affectedElements":  48,
+                                                                "wcagCriteria":  [
+                                                                                     "1.4.3"
+                                                                                 ]
+                                                            }
+                                                        ],
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://www.cloudflare.com/",
+                     "baseline":  {
+                                      "url":  "https://www.cloudflare.com/",
+                                      "status":  "COMPLETED",
+                                      "httpStatus":  200,
+                                      "reason":  null,
+                                      "violationRuleCount":  1,
+                                      "affectedElementsByImpact":  {
+                                                                       "serious":  4
+                                                                   },
+                                      "wcagCriteriaWithFindings":  [
+                                                                       "1.4.3"
+                                                                   ],
+                                      "violations":  [
+                                                         {
+                                                             "id":  "color-contrast",
+                                                             "impact":  "serious",
+                                                             "affectedElements":  4,
+                                                             "wcagCriteria":  [
+                                                                                  "1.4.3"
+                                                                              ]
+                                                         }
+                                                     ],
+                                      "incompleteRuleCount":  2,
+                                      "manualReview":  [
+                                                           {
+                                                               "id":  "aria-roledescription",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  2,
+                                                               "wcagCriteria":  [
+                                                                                    "4.1.2"
+                                                                                ]
+                                                           },
+                                                           {
+                                                               "id":  "color-contrast",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  81,
+                                                               "wcagCriteria":  [
+                                                                                    "1.4.3"
+                                                                                ]
+                                                           }
+                                                       ],
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.cloudflare.com/",
+                                       "status":  "COMPLETED",
+                                       "httpStatus":  200,
+                                       "reason":  null,
+                                       "violationRuleCount":  1,
+                                       "affectedElementsByImpact":  {
+                                                                        "serious":  14
+                                                                    },
+                                       "wcagCriteriaWithFindings":  [
+                                                                        "1.4.3"
+                                                                    ],
+                                       "violations":  [
+                                                          {
+                                                              "id":  "color-contrast",
+                                                              "impact":  "serious",
+                                                              "affectedElements":  14,
+                                                              "wcagCriteria":  [
+                                                                                   "1.4.3"
+                                                                               ]
+                                                          }
+                                                      ],
+                                       "incompleteRuleCount":  1,
+                                       "manualReview":  [
+                                                            {
+                                                                "id":  "color-contrast",
+                                                                "impact":  "serious",
+                                                                "affectedElements":  64,
+                                                                "wcagCriteria":  [
+                                                                                     "1.4.3"
+                                                                                 ]
+                                                            }
+                                                        ],
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://www.python.org/",
+                     "baseline":  {
+                                      "url":  "https://www.python.org/",
+                                      "status":  "BLOCKED",
+                                      "httpStatus":  200,
+                                      "reason":  "Page Content Security Policy refused Playwright inline script injection.",
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.python.org/",
+                                       "status":  "BLOCKED",
+                                       "httpStatus":  200,
+                                       "reason":  "Page Content Security Policy refused Playwright inline script injection.",
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://developer.mozilla.org/",
+                     "baseline":  {
+                                      "url":  "https://developer.mozilla.org/",
+                                      "status":  "BLOCKED",
+                                      "httpStatus":  200,
+                                      "reason":  "Page Content Security Policy refused Playwright inline script injection.",
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://developer.mozilla.org/",
+                                       "status":  "BLOCKED",
+                                       "httpStatus":  200,
+                                       "reason":  "Page Content Security Policy refused Playwright inline script injection.",
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://www.khanacademy.org/",
+                     "baseline":  {
+                                      "url":  "https://www.khanacademy.org/",
+                                      "status":  "COMPLETED",
+                                      "httpStatus":  200,
+                                      "reason":  null,
+                                      "violationRuleCount":  0,
+                                      "affectedElementsByImpact":  {
+
+                                                                   },
+                                      "wcagCriteriaWithFindings":  [
+
+                                                                   ],
+                                      "violations":  [
+
+                                                     ],
+                                      "incompleteRuleCount":  0,
+                                      "manualReview":  [
+
+                                                       ],
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.khanacademy.org/",
+                                       "status":  "COMPLETED",
+                                       "httpStatus":  200,
+                                       "reason":  null,
+                                       "violationRuleCount":  0,
+                                       "affectedElementsByImpact":  {
+
+                                                                    },
+                                       "wcagCriteriaWithFindings":  [
+
+                                                                    ],
+                                       "violations":  [
+
+                                                      ],
+                                       "incompleteRuleCount":  0,
+                                       "manualReview":  [
+
+                                                        ],
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://www.shopify.com/",
+                     "baseline":  {
+                                      "url":  "https://www.shopify.com/",
+                                      "status":  "COMPLETED",
+                                      "httpStatus":  200,
+                                      "reason":  null,
+                                      "violationRuleCount":  0,
+                                      "affectedElementsByImpact":  {
+
+                                                                   },
+                                      "wcagCriteriaWithFindings":  [
+
+                                                                   ],
+                                      "violations":  [
+
+                                                     ],
+                                      "incompleteRuleCount":  2,
+                                      "manualReview":  [
+                                                           {
+                                                               "id":  "color-contrast",
+                                                               "impact":  "serious",
+                                                               "affectedElements":  65,
+                                                               "wcagCriteria":  [
+                                                                                    "1.4.3"
+                                                                                ]
+                                                           },
+                                                           {
+                                                               "id":  "video-caption",
+                                                               "impact":  "critical",
+                                                               "affectedElements":  1,
+                                                               "wcagCriteria":  [
+                                                                                    "1.2.2"
+                                                                                ]
+                                                           }
+                                                       ],
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.shopify.com/",
+                                       "status":  "COMPLETED",
+                                       "httpStatus":  200,
+                                       "reason":  null,
+                                       "violationRuleCount":  1,
+                                       "affectedElementsByImpact":  {
+                                                                        "serious":  1
+                                                                    },
+                                       "wcagCriteriaWithFindings":  [
+                                                                        "2.5.3"
+                                                                    ],
+                                       "violations":  [
+                                                          {
+                                                              "id":  "label-content-name-mismatch",
+                                                              "impact":  "serious",
+                                                              "affectedElements":  1,
+                                                              "wcagCriteria":  [
+                                                                                   "2.5.3"
+                                                                               ]
+                                                          }
+                                                      ],
+                                       "incompleteRuleCount":  3,
+                                       "manualReview":  [
+                                                            {
+                                                                "id":  "aria-valid-attr-value",
+                                                                "impact":  "critical",
+                                                                "affectedElements":  1,
+                                                                "wcagCriteria":  [
+                                                                                     "4.1.2"
+                                                                                 ]
+                                                            },
+                                                            {
+                                                                "id":  "color-contrast",
+                                                                "impact":  "serious",
+                                                                "affectedElements":  65,
+                                                                "wcagCriteria":  [
+                                                                                     "1.4.3"
+                                                                                 ]
+                                                            },
+                                                            {
+                                                                "id":  "video-caption",
+                                                                "impact":  "critical",
+                                                                "affectedElements":  1,
+                                                                "wcagCriteria":  [
+                                                                                     "1.2.2"
+                                                                                 ]
+                                                            }
+                                                        ],
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 },
+                 {
+                     "url":  "https://www.gnu.org/",
+                     "baseline":  {
+                                      "url":  "https://www.gnu.org/",
+                                      "status":  "RATE_LIMITED",
+                                      "httpStatus":  429,
+                                      "reason":  "HTTP 429 response; page is not an accessibility result.",
+                                      "engineVersion":  "4.9.0",
+                                      "configuredTags":  [
+                                                             "wcag2a",
+                                                             "wcag2aa",
+                                                             "wcag21a",
+                                                             "wcag21aa",
+                                                             "wcag22aa"
+                                                         ]
+                                  },
+                     "candidate":  {
+                                       "url":  "https://www.gnu.org/",
+                                       "status":  "TIMED_OUT",
+                                       "httpStatus":  null,
+                                       "reason":  "DOMContentLoaded navigation exceeded the 20-second baseline timeout.",
+                                       "engineVersion":  "4.14.0",
+                                       "configuredTags":  [
+                                                              "wcag2a",
+                                                              "wcag2aa",
+                                                              "wcag21a",
+                                                              "wcag21aa",
+                                                              "wcag22aa"
+                                                          ]
+                                   }
+                 }
+             ]
+}

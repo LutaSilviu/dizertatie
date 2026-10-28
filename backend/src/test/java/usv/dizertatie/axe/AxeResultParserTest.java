@@ -179,4 +179,21 @@ class AxeResultParserTest {
         assertThat(findings.get(0).getWcagCriterion()).isNull();
         assertThat(findings.get(0).getRuleId()).isEqualTo("aria-required-attr");
     }
+
+    @Test
+    void parsesWcagCriteriaWithTwoDigitFinalComponents() {
+        String json = """
+                [
+                  {"id":"target-size","impact":"serious","tags":["wcag2aa","wcag22aa","wcag222"],"nodes":[{"target":["a.small"]}]},
+                  {"id":"reflow","impact":"serious","tags":["wcag2aa","wcag21aa","wcag2110"],"nodes":[{"target":["main"]}]}
+                ]
+                """;
+
+        List<Finding> findings = parser.parse(json);
+
+        assertThat(findings).extracting(Finding::getWcagCriterion)
+                .containsExactly("2.2.2", "2.1.10");
+        assertThat(findings).extracting(Finding::getWcagLevel)
+                .containsExactly("AA", "AA");
+    }
 }
