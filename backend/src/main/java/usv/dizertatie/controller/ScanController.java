@@ -16,6 +16,7 @@ import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.domain.ScanStatus;
 import usv.dizertatie.export.CsvSerializer;
 import usv.dizertatie.service.ScanService;
 
@@ -55,7 +56,7 @@ public class ScanController {
     @Operation(
             summary = "Trigger a new accessibility scan",
             description = "Runs an accessibility scan on the given URL using either the AXE rule engine or an AI model. " +
-                    "The scan runs synchronously and returns the result when complete."
+                    "The attempt runs synchronously and returns either completed evidence or a persisted failure status."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Scan completed successfully",
@@ -104,7 +105,7 @@ public class ScanController {
 
     @Operation(
             summary = "Get a scan by ID",
-            description = "Returns the full scan result including all accessibility findings for the given scan ID."
+            description = "Returns the scan outcome and, for completed scans, all accessibility findings."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Scan found",
@@ -174,11 +175,20 @@ public class ScanController {
         List<usv.dizertatie.axe.ManualReviewItem> manualReviewItems = axeResultParser.parseIncomplete(
                 scan.getRawAxeIncomplete() == null ? "[]" : scan.getRawAxeIncomplete());
 
+        ScanStatus status = scan.getStatus() == null ? ScanStatus.COMPLETED : scan.getStatus();
+        if (status != ScanStatus.COMPLETED) {
+            return new ScanResponse(
+                    scan.getId(), scan.getUrl(), scan.getMethod(), timestamp,
+                    status, scan.getFailureReason(), null, null, null, List.of(), List.of());
+        }
+
         return new ScanResponse(
                 scan.getId(),
                 scan.getUrl(),
                 scan.getMethod(),
                 timestamp,
+                status,
+                null,
                 affectedElementsByImpact,
                 distinctRuleCount,
                 wcagCriteria,

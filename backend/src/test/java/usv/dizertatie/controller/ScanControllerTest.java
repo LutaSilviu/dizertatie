@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.domain.ScanStatus;
 import usv.dizertatie.export.CsvSerializer;
 import usv.dizertatie.service.ScanService;
 
@@ -59,7 +60,7 @@ class ScanControllerTest {
     void getScans_withValidApiKey_returns200AndJsonArray() throws Exception {
         ScanSummaryResponse item = new ScanSummaryResponse(
                 1L, "https://example.com", "AXE", null,
-                Instant.now(), 3L
+                Instant.now(), 3L, ScanStatus.COMPLETED, null
         );
         ScanHistoryResponse history = new ScanHistoryResponse(List.of(item), 0, 20, 1L);
 
@@ -80,7 +81,7 @@ class ScanControllerTest {
     void getScans_responseItemsContainExpectedFields() throws Exception {
         ScanSummaryResponse item = new ScanSummaryResponse(
                 42L, "https://example.com/page", "AXE", null,
-                Instant.parse("2026-10-01T10:00:00Z"), 12L
+                Instant.parse("2026-10-01T10:00:00Z"), 12L, ScanStatus.COMPLETED, null
         );
         ScanHistoryResponse history = new ScanHistoryResponse(List.of(item), 0, 20, 1L);
 
@@ -123,6 +124,31 @@ class ScanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value(42));
+    }
+
+    @Test
+    void postScans_blockedAttempt_returnsPersistedFailureInsteadOfCompletedEmptyScan() throws Exception {
+        Scan scan = Scan.builder()
+                .id(43L)
+                .url("https://example.com/blocked")
+                .method("AXE")
+                .status(ScanStatus.BLOCKED)
+                .failureReason("Target site blocked access with HTTP 403.")
+                .timestamp(LocalDateTime.now())
+                .build();
+        when(scanService.runAxeScan("https://example.com/blocked")).thenReturn(scan);
+
+        mockMvc.perform(post("/scans")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "url": "https://example.com/blocked", "method": "AXE" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("BLOCKED"))
+                .andExpect(jsonPath("$.failureReason").value("Target site blocked access with HTTP 403."))
+                .andExpect(jsonPath("$.findings").isEmpty())
+                .andExpect(jsonPath("$.distinctRuleCount").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test
@@ -221,6 +247,46 @@ class ScanControllerTest {
                 .andExpect(jsonPath("$.distinctRuleCount").value(0))
                 .andExpect(jsonPath("$.wcagCriteriaWithFindings").isEmpty())
                 .andExpect(jsonPath("$.manualReviewItems").isEmpty());
+    }
+
+    @Test
+    void getScansById_failedAttemptReturnsStatusAndReasonWithoutCompletedScanEvidence() throws Exception {
+        Scan scan = Scan.builder()
+                .id(4L)
+                .url("https://example.com/private")
+                .method("AXE")
+                .status(ScanStatus.BLOCKED)
+                .failureReason("Target site served a bot challenge instead of the page.")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        when(scanService.findById(4L)).thenReturn(scan);
+        when(scanService.findingsForScan(scan)).thenReturn(List.of());
+
+        mockMvc.perform(get("/scans/4").header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("BLOCKED"))
+                .andExpect(jsonPath("$.failureReason").value("Target site served a bot challenge instead of the page."))
+                .andExpect(jsonPath("$.findings").isEmpty())
+                .andExpect(jsonPath("$.affectedElementsByImpact").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.distinctRuleCount").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.severityScore").doesNotExist());
+    }
+
+    @Test
+    void getScans_historyIncludesFailedStatusAndReasonWithZeroFindings() throws Exception {
+        ScanSummaryResponse item = new ScanSummaryResponse(
+                4L, "https://example.com/private", "AXE", null,
+                Instant.parse("2026-10-01T10:00:00Z"), 0L,
+                ScanStatus.RATE_LIMITED, "Target site responded with HTTP 429."
+        );
+        when(scanService.findAll(0, 20)).thenReturn(new ScanHistoryResponse(List.of(item), 0, 20, 1));
+
+        mockMvc.perform(get("/scans").header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].status").value("RATE_LIMITED"))
+                .andExpect(jsonPath("$.content[0].failureReason").value("Target site responded with HTTP 429."))
+                .andExpect(jsonPath("$.content[0].findingCount").value(0));
     }
 
     @Test

@@ -41,4 +41,12 @@ public class Scan {
 
     @Column(nullable = false)
     private LocalDateTime timestamp;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private ScanStatus status = ScanStatus.COMPLETED;
+
+    @Column(columnDefinition = "TEXT")
+    private String failureReason;
 }

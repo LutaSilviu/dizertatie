@@ -168,6 +168,20 @@
   font-size: 0.85rem;
 }
 
+.failurePanel {
+  padding: 1rem 1.25rem;
+  border: 1px solid #fc8181;
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #742a2a;
+}
+
+.failurePanel h2,
+.failurePanel p {
+  margin: 0.25rem 0;
+}
+
 .reviewList,
 .reviewElements {
   display: grid;
@@ -385,6 +399,12 @@
 
   .reviewItem h3 {
     color: #fefcbf;
+  }
+
+  .failurePanel {
+    background: #2d1f24;
+    border-color: #c53030;
+    color: #fed7d7;
   }
 
   .tableWrapper {

@@ -9,15 +9,15 @@ import org.junit.jupiter.api.Test;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
 import usv.dizertatie.domain.Finding;
-import usv.dizertatie.playwright.PageBlockedException;
+import usv.dizertatie.domain.ScanStatus;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
 
 import java.net.InetSocketAddress;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -68,6 +68,30 @@ class ScanServiceBlockedPageTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/rate-limited", exchange -> {
+            byte[] body = "Too many requests".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(429, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.createContext("/server-error", exchange -> {
+            byte[] body = "Service unavailable".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(503, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.createContext("/slow", exchange -> {
+            try {
+                Thread.sleep(17_000);
+                exchange.sendResponseHeaders(200, -1);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } catch (IOException disconnected) {
+                // The browser closes the timed-out request before the response is sent.
+            } finally {
+                exchange.close();
+            }
+        });
         server.start();
 
         playwright = Playwright.create();
@@ -86,14 +110,57 @@ class ScanServiceBlockedPageTest {
     }
 
     @Test
-    void runAxeScan_botChallengePage_failsInsteadOfPersistingChallengeFindings() {
+    void runAxeScan_botChallengePage_persistsBlockedAttemptWithoutFindings() {
         String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/challenge";
+        when(scanRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> scanService.runAxeScan(url))
-                .isInstanceOf(PageBlockedException.class)
-                .hasMessageContaining(url);
+        var scan = scanService.runAxeScan(url);
 
-        verify(scanRepository, never()).save(any());
+        assertThat(scan.getStatus()).isEqualTo(ScanStatus.BLOCKED);
+        assertThat(scan.getFailureReason()).contains("bot challenge");
+        verify(scanRepository).save(org.mockito.ArgumentMatchers.argThat(saved ->
+                saved.getUrl().equals(url) && saved.getStatus() == ScanStatus.BLOCKED));
+        verify(findingRepository, never()).saveAll(any());
+        verify(axeService, never()).run(any());
+    }
+
+    @Test
+    void runAxeScan_http429_persistsRateLimitedAttempt() {
+        String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/rate-limited";
+        when(scanRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var scan = scanService.runAxeScan(url);
+
+        assertThat(scan.getStatus()).isEqualTo(ScanStatus.RATE_LIMITED);
+        assertThat(scan.getFailureReason()).contains("HTTP 429");
+        verify(findingRepository, never()).saveAll(any());
+        verify(axeService, never()).run(any());
+    }
+
+    @Test
+    void runAxeScan_http503_persistsFallbackFailure() {
+        String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/server-error";
+        when(scanRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var scan = scanService.runAxeScan(url);
+
+        assertThat(scan.getStatus()).isEqualTo(ScanStatus.FAILED);
+        assertThat(scan.getFailureReason()).contains("HTTP 503");
+        verify(findingRepository, never()).saveAll(any());
+        verify(axeService, never()).run(any());
+    }
+
+    @Test
+    void runAxeScan_navigationTimeout_persistsTimedOutAttempt() {
+        String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/slow";
+        when(scanRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var scan = scanService.runAxeScan(url);
+
+        assertThat(scan.getStatus()).isEqualTo(ScanStatus.TIMED_OUT);
+        assertThat(scan.getFailureReason()).contains("Timeout");
+        verify(findingRepository, never()).saveAll(any());
+        verify(axeService, never()).run(any());
     }
 
     @Test

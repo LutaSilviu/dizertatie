@@ -17,20 +17,34 @@ public final class PageNavigator {
     }
 
     /**
-     * Navigates to the URL, waits for network idle, and verifies the main document response.
+     * Navigates after DOM content is loaded, allows a short bounded stabilization period, and
+     * verifies the main document response. It intentionally does not wait for global network idle.
      *
-     * @throws PageBlockedException if the site answered with a bot challenge or an HTTP error
+     * @throws PageBlockedException if the target explicitly blocks access or serves a bot challenge
+     * @throws RateLimitedPageException if the target responds with HTTP 429
      */
     public static void open(Page page, String url) {
-        Response response = page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+        Response response = page.navigate(url, new Page.NavigateOptions()
+                .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
+                .setTimeout(15_000));
         if (response == null) {
-            return;
+            throw new RuntimeException("Target did not provide a main document response.");
         }
         if (response.headers().containsKey("cf-mitigated")) {
-            throw new PageBlockedException("Target site served a bot challenge instead of the page: " + url);
+            throw new PageBlockedException("Target site served a bot challenge instead of the page.");
+        }
+        if (response.status() == 429) {
+            throw new RateLimitedPageException("Target site responded with HTTP 429.");
+        }
+        if (response.status() == 401 || response.status() == 403) {
+            throw new PageBlockedException("Target site blocked access with HTTP " + response.status() + ".");
         }
         if (response.status() >= 400) {
-            throw new PageBlockedException("Target site responded with HTTP " + response.status() + ": " + url);
+            throw new RuntimeException("Target site responded with HTTP " + response.status() + ".");
         }
+
+        page.waitForTimeout(500);
+        page.waitForFunction("() => document.readyState === 'interactive' || document.readyState === 'complete'",
+                null, new Page.WaitForFunctionOptions().setTimeout(2_000));
     }
 }

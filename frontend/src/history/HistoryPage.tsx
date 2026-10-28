@@ -10,6 +10,8 @@ interface ScanRecord {
   model: string
   timestamp: string
   findingCount: number
+  status: 'COMPLETED' | 'TIMED_OUT' | 'RATE_LIMITED' | 'BLOCKED' | 'FAILED'
+  failureReason: string | null
 }
 
 interface ScansResponse {
@@ -89,6 +91,7 @@ function HistoryPage() {
                   <th>Model</th>
                   <th>Timestamp</th>
                   <th>Findings</th>
+                  <th>Outcome</th>
                 </tr>
               </thead>
               <tbody>
@@ -102,6 +105,10 @@ function HistoryPage() {
                     <td>{scan.model}</td>
                     <td>{new Date(scan.timestamp).toLocaleString()}</td>
                     <td>{scan.findingCount}</td>
+                    <td>
+                      <strong>{scan.status === 'COMPLETED' ? 'Completed' : scan.status.replace(/_/g, ' ')}</strong>
+                      {scan.failureReason && <p className={styles.failureReason}>{scan.failureReason}</p>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

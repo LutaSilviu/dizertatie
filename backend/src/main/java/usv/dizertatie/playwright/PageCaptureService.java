@@ -7,7 +7,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * Spring service that captures the rendered HTML and a full-page screenshot of a web page
- * using a single Playwright browser session.
+     * using a single Playwright browser session. Navigation waits for DOM content and a bounded
+     * stabilization period rather than waiting for global network idle.
  */
 @Service
 public class PageCaptureService {
@@ -19,7 +20,7 @@ public class PageCaptureService {
     }
 
     /**
-     * Launches a headless browser, navigates to the given URL, waits for network idle,
+     * Launches a headless browser, navigates to the given URL,
      * and returns a {@link PageCapture} containing both the rendered HTML and a full-page
      * PNG screenshot — all captured in one browser session.
      *

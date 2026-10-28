@@ -34,11 +34,13 @@ interface ScanReport {
   method: string
   model?: string
   timestamp: string
-  affectedElementsByImpact: Record<string, number>
-  distinctRuleCount: number
-  wcagCriteriaWithFindings: string[]
-  findings: Finding[]
-  manualReviewItems: ManualReviewItem[]
+  status: 'COMPLETED' | 'TIMED_OUT' | 'RATE_LIMITED' | 'BLOCKED' | 'FAILED'
+  failureReason: string | null
+  affectedElementsByImpact: Record<string, number> | null
+  distinctRuleCount: number | null
+  wcagCriteriaWithFindings: string[] | null
+  findings: Finding[] | null
+  manualReviewItems: ManualReviewItem[] | null
 }
 
 function FindingsTable({ findings }: { findings: Finding[] }) {
@@ -198,18 +200,25 @@ function ReportPage() {
   if (!report) return null
 
   const formattedDate = new Date(report.timestamp).toLocaleString()
+  const completed = report.status === 'COMPLETED'
+  const findings = report.findings ?? []
+  const criteria = report.wcagCriteriaWithFindings ?? []
+  const impacts = report.affectedElementsByImpact ?? {}
+  const manualReviewItems = report.manualReviewItems ?? []
 
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
         <Link to="/analyzer" className={styles.backLink}>← Back to Analyzer</Link>
-        <button
-          className={styles.exportBtn}
-          onClick={handleExportCsv}
-          disabled={exporting}
-        >
-          {exporting ? 'Exporting…' : 'Export CSV'}
-        </button>
+        {completed && (
+          <button
+            className={styles.exportBtn}
+            onClick={handleExportCsv}
+            disabled={exporting}
+          >
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </button>
+        )}
       </div>
 
       <h1 className={styles.pageTitle} title={report.url}>
@@ -235,16 +244,24 @@ function ReportPage() {
         </dl>
       </section>
 
+      {!completed ? (
+        <section className={styles.failurePanel} aria-labelledby="scan-failure-heading" role="status">
+          <h2 id="scan-failure-heading">Scan {report.status.replace(/_/g, ' ').toLowerCase()}</h2>
+          <p>{report.failureReason || 'The scan could not be completed.'}</p>
+          <p>No accessibility findings were collected for this attempt.</p>
+        </section>
+      ) : (
+        <>
       <section className={styles.section} aria-labelledby="evidence-heading">
         <h2 id="evidence-heading" className={styles.sectionTitle}>Scan evidence</h2>
         <div className={styles.evidenceGrid}>
           <div className={styles.evidenceCard}>
             <h3>Affected elements by axe impact</h3>
-            {Object.keys(report.affectedElementsByImpact).length === 0 ? (
+            {Object.keys(impacts).length === 0 ? (
               <p>0 affected elements</p>
             ) : (
               <ul>
-                {Object.entries(report.affectedElementsByImpact).map(([impact, count]) => (
+                {Object.entries(impacts).map(([impact, count]) => (
                   <li key={impact}><span>{impact}</span><strong>{count}</strong></li>
                 ))}
               </ul>
@@ -256,11 +273,11 @@ function ReportPage() {
           </div>
           <div className={styles.evidenceCard}>
             <h3>WCAG criteria with findings</h3>
-            {report.wcagCriteriaWithFindings.length === 0 ? (
+            {criteria.length === 0 ? (
               <p>No WCAG criteria with findings.</p>
             ) : (
               <ul className={styles.criteriaList}>
-                {report.wcagCriteriaWithFindings.map((criterion) => <li key={criterion}>{criterion}</li>)}
+                {criteria.map((criterion) => <li key={criterion}>{criterion}</li>)}
               </ul>
             )}
             <p className={styles.reviewNote}>Criteria without findings are not confirmed as passed.</p>
@@ -270,12 +287,14 @@ function ReportPage() {
 
       <section className={styles.section} aria-labelledby="findings-heading">
         <h2 id="findings-heading" className={styles.sectionTitle}>
-          Affected elements ({report.findings.length})
+          Affected elements ({findings.length})
         </h2>
-        <FindingsTable findings={report.findings} />
+        <FindingsTable findings={findings} />
       </section>
 
-      <ManualReviewSection items={report.manualReviewItems} />
+      <ManualReviewSection items={manualReviewItems} />
+        </>
+      )}
     </div>
   )
 }

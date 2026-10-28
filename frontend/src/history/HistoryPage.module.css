@@ -71,6 +71,13 @@
   white-space: nowrap;
 }
 
+.failureReason {
+  max-width: 360px;
+  margin: 0.25rem 0 0;
+  color: #9b2c2c;
+  white-space: normal;
+}
+
 .pagination {
   display: flex;
   align-items: center;
@@ -127,6 +134,10 @@
 
   .table a {
     color: #63b3ed;
+  }
+
+  .failureReason {
+    color: #feb2b2;
   }
 
   .pageBtn {

@@ -4,6 +4,7 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.TimeoutError;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,9 +20,12 @@ import usv.dizertatie.controller.ScanHistoryResponse;
 import usv.dizertatie.controller.ScanSummaryResponse;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.domain.ScanStatus;
 import usv.dizertatie.playwright.PageCapture;
 import usv.dizertatie.playwright.PageCaptureService;
+import usv.dizertatie.playwright.PageBlockedException;
 import usv.dizertatie.playwright.PageNavigator;
+import usv.dizertatie.playwright.RateLimitedPageException;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
 
@@ -66,7 +70,10 @@ public class ScanService {
 
         List<ScanSummaryResponse> content = scanPage.getContent().stream()
                 .map(scan -> {
-                    List<Finding> findings = findingRepository.findByScan(scan);
+                    ScanStatus status = scan.getStatus() == null ? ScanStatus.COMPLETED : scan.getStatus();
+                    List<Finding> findings = status == ScanStatus.COMPLETED
+                            ? findingRepository.findByScan(scan)
+                            : List.of();
                     java.time.Instant timestamp = scan.getTimestamp() != null
                             ? scan.getTimestamp().atZone(ZoneOffset.UTC).toInstant()
                             : null;
@@ -76,7 +83,9 @@ public class ScanService {
                             scan.getMethod(),
                             scan.getModelId(),
                             timestamp,
-                            findings.size()
+                            findings.size(),
+                            status,
+                            status == ScanStatus.COMPLETED ? null : scan.getFailureReason()
                     );
                 })
                 .toList();
@@ -99,43 +108,45 @@ public class ScanService {
      */
     @Transactional
     public Scan runAxeScan(String url) {
-        String violationsJson;
-        String browserVersion;
-
-        Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
-        Browser.NewContextOptions contextOptions = new Browser.NewContextOptions().setBypassCSP(true);
-        BrowserContext context = browser.newContext(contextOptions);
-        Page page = null;
         try {
-            page = context.newPage();
-            PageNavigator.open(page, url);
+            String violationsJson;
+            String browserVersion;
 
-            browserVersion = browser.browserType().name() + "/" + browser.version();
+            Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+            try {
+                BrowserContext context = browser.newContext(new Browser.NewContextOptions().setBypassCSP(true));
+                try {
+                    Page page = context.newPage();
+                    PageNavigator.open(page, url);
+                    browserVersion = browser.browserType().name() + "/" + browser.version();
+                    violationsJson = axeService.run(page);
+                } finally {
+                    context.close();
+                }
+            } finally {
+                browser.close();
+            }
 
-            // Run axe-core on the already-loaded page
-            violationsJson = axeService.run(page);
-        } finally {
-            context.close();
-            browser.close();
+            List<Finding> findings = axeResultParser.parse(violationsJson);
+            Scan scan = Scan.builder()
+                    .url(url)
+                    .method("AXE")
+                    .status(ScanStatus.COMPLETED)
+                    .axeVersion(AxeService.AXE_VERSION)
+                    .browserVersion(browserVersion)
+                    .rawAxeIncomplete(axeResultParser.incompleteAsJson(violationsJson))
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            scan = scanRepository.save(scan);
+
+            final Scan savedScan = scan;
+            findings.forEach(f -> f.setScan(savedScan));
+            findingRepository.saveAll(findings);
+
+            return savedScan;
+        } catch (RuntimeException failure) {
+            return persistFailure(url, "AXE", failure);
         }
-
-        List<Finding> findings = axeResultParser.parse(violationsJson);
-
-        Scan scan = Scan.builder()
-                .url(url)
-                .method("AXE")
-                .axeVersion(AxeService.AXE_VERSION)
-                .browserVersion(browserVersion)
-                .rawAxeIncomplete(axeResultParser.incompleteAsJson(violationsJson))
-                .timestamp(LocalDateTime.now())
-                .build();
-        scan = scanRepository.save(scan);
-
-        final Scan savedScan = scan;
-        findings.forEach(f -> f.setScan(savedScan));
-        findingRepository.saveAll(findings);
-
-        return savedScan;
     }
 
     /**
@@ -153,25 +164,30 @@ public class ScanService {
      */
     @Transactional
     public Scan runAiScan(String url, AiModel model) {
-        PageCapture capture = pageCaptureService.capture(url);
-        String rawJson = aiAnalysisService.analyze(capture, model);
-        List<Finding> findings = aiResponseParser.parse(rawJson);
+        try {
+            PageCapture capture = pageCaptureService.capture(url);
+            String rawJson = aiAnalysisService.analyze(capture, model);
+            List<Finding> findings = aiResponseParser.parse(rawJson);
 
-        Scan scan = Scan.builder()
-                .url(url)
-                .method("AI")
-                .modelId(model.getModelId())
-                .promptVersion(promptLoader.getVersion())
-                .rawAiResponse(rawJson)
-                .timestamp(LocalDateTime.now())
-                .build();
-        scan = scanRepository.save(scan);
+            Scan scan = Scan.builder()
+                    .url(url)
+                    .method("AI")
+                    .status(ScanStatus.COMPLETED)
+                    .modelId(model.getModelId())
+                    .promptVersion(promptLoader.getVersion())
+                    .rawAiResponse(rawJson)
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            scan = scanRepository.save(scan);
 
-        final Scan savedScan = scan;
-        findings.forEach(f -> f.setScan(savedScan));
-        findingRepository.saveAll(findings);
+            final Scan savedScan = scan;
+            findings.forEach(f -> f.setScan(savedScan));
+            findingRepository.saveAll(findings);
 
-        return savedScan;
+            return savedScan;
+        } catch (RuntimeException failure) {
+            return persistFailure(url, "AI", failure);
+        }
     }
 
     /**
@@ -191,53 +207,56 @@ public class ScanService {
      */
     @Transactional
     public Scan runCombinedScan(String url, AiModel model) {
-        String violationsJson;
-        String html;
-        byte[] screenshotPng;
-        String browserVersion;
-
-        Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
-        Browser.NewContextOptions contextOptions = new Browser.NewContextOptions().setBypassCSP(true);
-        BrowserContext context = browser.newContext(contextOptions);
-        Page page = null;
         try {
-            page = context.newPage();
-            PageNavigator.open(page, url);
+            String violationsJson;
+            String html;
+            byte[] screenshotPng;
+            String browserVersion;
 
-            browserVersion = browser.browserType().name() + "/" + browser.version();
-            html = page.content();
-            screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
-            violationsJson = axeService.run(page);
-        } finally {
-            context.close();
-            browser.close();
+            Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+            try {
+                BrowserContext context = browser.newContext(new Browser.NewContextOptions().setBypassCSP(true));
+                try {
+                    Page page = context.newPage();
+                    PageNavigator.open(page, url);
+                    browserVersion = browser.browserType().name() + "/" + browser.version();
+                    html = page.content();
+                    screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
+                    violationsJson = axeService.run(page);
+                } finally {
+                    context.close();
+                }
+            } finally {
+                browser.close();
+            }
+
+            List<Finding> axeFindings = axeResultParser.parse(violationsJson);
+            String rawJson = aiAnalysisService.analyze(new PageCapture(html, screenshotPng), model);
+            List<Finding> aiFindings = aiResponseParser.parse(rawJson);
+            List<Finding> mergedFindings = findingMergeService.merge(axeFindings, aiFindings);
+
+            Scan scan = Scan.builder()
+                    .url(url)
+                    .method("COMBINED")
+                    .status(ScanStatus.COMPLETED)
+                    .axeVersion(AxeService.AXE_VERSION)
+                    .browserVersion(browserVersion)
+                    .rawAxeIncomplete(axeResultParser.incompleteAsJson(violationsJson))
+                    .modelId(model.getModelId())
+                    .promptVersion(promptLoader.getVersion())
+                    .rawAiResponse(rawJson)
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            scan = scanRepository.save(scan);
+
+            final Scan savedScan = scan;
+            mergedFindings.forEach(f -> f.setScan(savedScan));
+            findingRepository.saveAll(mergedFindings);
+
+            return savedScan;
+        } catch (RuntimeException failure) {
+            return persistFailure(url, "COMBINED", failure);
         }
-
-        List<Finding> axeFindings = axeResultParser.parse(violationsJson);
-
-        String rawJson = aiAnalysisService.analyze(new PageCapture(html, screenshotPng), model);
-        List<Finding> aiFindings = aiResponseParser.parse(rawJson);
-
-        List<Finding> mergedFindings = findingMergeService.merge(axeFindings, aiFindings);
-
-        Scan scan = Scan.builder()
-                .url(url)
-                .method("COMBINED")
-                .axeVersion(AxeService.AXE_VERSION)
-                .browserVersion(browserVersion)
-                .rawAxeIncomplete(axeResultParser.incompleteAsJson(violationsJson))
-                .modelId(model.getModelId())
-                .promptVersion(promptLoader.getVersion())
-                .rawAiResponse(rawJson)
-                .timestamp(LocalDateTime.now())
-                .build();
-        scan = scanRepository.save(scan);
-
-        final Scan savedScan = scan;
-        mergedFindings.forEach(f -> f.setScan(savedScan));
-        findingRepository.saveAll(mergedFindings);
-
-        return savedScan;
     }
 
     /**
@@ -260,5 +279,39 @@ public class ScanService {
      */
     public List<Finding> findingsForScan(Scan scan) {
         return findingRepository.findByScan(scan);
+    }
+
+    private Scan persistFailure(String url, String method, RuntimeException failure) {
+        Throwable cause = failure;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            if (cause instanceof RateLimitedPageException || cause instanceof PageBlockedException
+                    || cause instanceof TimeoutError) break;
+            cause = cause.getCause();
+        }
+
+        ScanStatus status;
+        if (cause instanceof RateLimitedPageException) {
+            status = ScanStatus.RATE_LIMITED;
+        } else if (cause instanceof PageBlockedException) {
+            status = ScanStatus.BLOCKED;
+        } else if (cause instanceof TimeoutError) {
+            status = ScanStatus.TIMED_OUT;
+        } else {
+            status = ScanStatus.FAILED;
+        }
+
+        String reason = cause.getMessage();
+        if (reason == null || reason.isBlank()) reason = "The scan could not be completed.";
+        if (status == ScanStatus.FAILED) {
+            reason = "Scan failed: " + reason;
+        }
+
+        return scanRepository.save(Scan.builder()
+                .url(url)
+                .method(method)
+                .timestamp(LocalDateTime.now())
+                .status(status)
+                .failureReason(reason)
+                .build());
     }
 }

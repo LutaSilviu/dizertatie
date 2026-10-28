@@ -2,6 +2,8 @@ package usv.dizertatie.service;
 
 import com.microsoft.playwright.BrowserType;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
@@ -14,18 +16,22 @@ import usv.dizertatie.ai.PromptLoader;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
 import usv.dizertatie.domain.Scan;
+import usv.dizertatie.domain.ScanStatus;
 import usv.dizertatie.playwright.PageCapture;
 import usv.dizertatie.playwright.PageCaptureService;
 import usv.dizertatie.repository.FindingRepository;
 import usv.dizertatie.repository.ScanRepository;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class ScanServiceTest {
@@ -65,5 +71,28 @@ class ScanServiceTest {
         assertThat(captor.getValue().screenshotPng())
                 .as("the screenshot captured from the page must reach the AI analysis")
                 .isEqualTo(SCREENSHOT);
+    }
+
+    @Test
+    void findAll_returnsPersistedFailureStateAndDoesNotLoadFindings() {
+        Scan failed = Scan.builder()
+                .id(7L)
+                .url(URL)
+                .method("AXE")
+                .status(ScanStatus.TIMED_OUT)
+                .failureReason("Navigation timed out before the page became scannable.")
+                .timestamp(LocalDateTime.of(2026, 10, 27, 10, 30))
+                .build();
+        when(scanRepository.findAllByOrderByTimestampDesc(PageRequest.of(0, 20)))
+                .thenReturn(new PageImpl<>(List.of(failed)));
+
+        var history = scanService.findAll(0, 20);
+
+        assertThat(history.content()).hasSize(1);
+        assertThat(history.content().getFirst().status()).isEqualTo(ScanStatus.TIMED_OUT);
+        assertThat(history.content().getFirst().failureReason())
+                .isEqualTo("Navigation timed out before the page became scannable.");
+        assertThat(history.content().getFirst().findingCount()).isZero();
+        verify(findingRepository, never()).findByScan(failed);
     }
 }
