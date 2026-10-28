@@ -127,6 +127,65 @@ class ScanControllerTest {
     }
 
     @Test
+    void postScans_completedAxeScan_returnsFindingsMetricsAndManualReviewEvidence() throws Exception {
+        Scan scan = Scan.builder()
+                .id(44L)
+                .url("https://example.com/report")
+                .method("AXE")
+                .timestamp(LocalDateTime.now())
+                .rawAxeIncomplete("""
+                        [{"id":"color-contrast","impact":"serious","description":"Check contrast",
+                          "help":"Review contrast","helpUrl":"https://example.com/help",
+                          "nodes":[{"target":[".hero"],"failureSummary":"Review the image background"}]}]
+                        """)
+                .build();
+        Finding firstFinding = Finding.builder()
+                .id(41L)
+                .scan(scan)
+                .sourceMethod("AXE")
+                .wcagCriterion("1.1.1")
+                .wcagLevel("A")
+                .ruleId("image-alt")
+                .severity("serious")
+                .elementSelector("img")
+                .description("Missing alt text")
+                .build();
+        Finding secondFinding = Finding.builder()
+                .id(42L)
+                .scan(scan)
+                .sourceMethod("AXE")
+                .wcagCriterion("1.4.3")
+                .wcagLevel("AA")
+                .ruleId("color-contrast")
+                .severity("moderate")
+                .elementSelector(".button")
+                .description("Insufficient contrast")
+                .build();
+
+        when(scanService.runAxeScan("https://example.com/report")).thenReturn(scan);
+        when(scanService.findingsForScan(scan)).thenReturn(List.of(firstFinding, secondFinding));
+
+        mockMvc.perform(post("/scans")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "url": "https://example.com/report", "method": "AXE" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(44))
+                .andExpect(jsonPath("$.findings.length()").value(2))
+                .andExpect(jsonPath("$.findings[0].ruleId").value("image-alt"))
+                .andExpect(jsonPath("$.affectedElementsByImpact.serious").value(1))
+                .andExpect(jsonPath("$.affectedElementsByImpact.moderate").value(1))
+                .andExpect(jsonPath("$.distinctRuleCount").value(2))
+                .andExpect(jsonPath("$.wcagCriteriaWithFindings[0]").value("1.1.1"))
+                .andExpect(jsonPath("$.wcagCriteriaWithFindings[1]").value("1.4.3"))
+                .andExpect(jsonPath("$.manualReviewItems.length()").value(1))
+                .andExpect(jsonPath("$.manualReviewItems[0].ruleId").value("color-contrast"))
+                .andExpect(jsonPath("$.manualReviewItems[0].elements[0].target").value(".hero"));
+    }
+
+    @Test
     void postScans_blockedAttempt_returnsPersistedFailureInsteadOfCompletedEmptyScan() throws Exception {
         Scan scan = Scan.builder()
                 .id(43L)

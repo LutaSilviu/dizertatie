@@ -88,7 +88,8 @@ public class ScanController {
             );
         }
 
-        ScanResponse response = toResponse(scan, List.of());
+        List<Finding> findings = scanService.findingsForScan(scan);
+        ScanResponse response = toResponse(scan, findings);
         return ResponseEntity.ok(response);
     }
 

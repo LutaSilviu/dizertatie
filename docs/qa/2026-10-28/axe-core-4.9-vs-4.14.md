@@ -34,3 +34,7 @@ Each completed page records the exact distinct violation rules and criteria deri
 ## Application browser check
 
 On 28 October 2026, the Vite app was opened in headless Chromium at `/report/123` with a local API response using the captured 4.14.0 `label-content-name-mismatch` finding (WCAG 2.5.3) and `color-contrast` incomplete result. The report displayed the finding and a separate “Needs manual review (1)” section with its target and failure summary. The page contained no composite score or WCAG percentage. This checked the report path with a representative 4.14.0 response; the fixed-page scans above exercised axe-core directly in Chromium.
+
+## History browser check
+
+On 28 October 2026, a temporary Chromium/Playwright check opened `/history` and stubbed `/api/scans?page=0&size=20` with one `RATE_LIMITED` scan. It verified that history displayed the scan URL, explicit status, HTTP 429 reason, and zero findings. The temporary JUnit/Playwright test passed (1 test) and was removed after the check.
