@@ -167,13 +167,18 @@
 				<artifactId>exec-maven-plugin</artifactId>
 				<version>3.3.0</version>
 				<executions>
+					<!-- exec:exec, not exec:java: the Playwright CLI calls System.exit,
+					     which would end the Maven JVM before Surefire runs. -->
 					<execution>
 						<id>install-playwright-browsers</id>
 						<phase>test-compile</phase>
-						<goals><goal>java</goal></goals>
+						<goals><goal>exec</goal></goals>
 						<configuration>
-							<mainClass>com.microsoft.playwright.CLI</mainClass>
+							<executable>${java.home}/bin/java</executable>
 							<arguments>
+								<argument>-classpath</argument>
+								<classpath/>
+								<argument>com.microsoft.playwright.CLI</argument>
 								<argument>install</argument>
 								<argument>chromium</argument>
 								<argument>--with-deps</argument>
