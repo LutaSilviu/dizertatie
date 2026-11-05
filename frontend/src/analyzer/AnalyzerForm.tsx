@@ -1,7 +1,9 @@
-import { useState, FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiFetch } from '../settings/apiClient'
-import { useSettings, type AiModel } from '../settings/useSettings'
+import { apiFetch, networkErrorMessage, readApiErrorDetail } from '../settings/apiClient'
+import { isAiUnavailable, useAiStatus, withAxeNote } from '../settings/aiStatus'
+import { normalizeUrl } from '../settings/url'
+import { readAiModelSavedAt, useSettings, type AiModel } from '../settings/useSettings'
 
 type ScanMethod = 'AXE' | 'AI' | 'COMBINED'
 
@@ -21,31 +23,159 @@ const MODELS: { value: AiModel; label: string }[] = [
   { value: 'gpt-4o', label: 'GPT-4o' },
 ]
 
-function isValidUrl(value: string): boolean {
+// Local copies of the W3C "Before and After Demonstration" served by the backend under
+// /fixtures (see backend/src/main/resources/static/fixtures/wai-bad). The URL is fetched by
+// the backend itself, so localhost:8080 is correct both on the host and inside Docker.
+const FIXTURE_BASE = 'http://localhost:8080/fixtures/wai-bad'
+const SAMPLE_PAGES: { label: string; url: string }[] = [
+  { label: 'W3C BAD demo – Home (inaccessible)', url: `${FIXTURE_BASE}/before/home.html` },
+  { label: 'W3C BAD demo – News (inaccessible)', url: `${FIXTURE_BASE}/before/news.html` },
+  { label: 'W3C BAD demo – Tickets (inaccessible)', url: `${FIXTURE_BASE}/before/tickets.html` },
+  { label: 'W3C BAD demo – Survey (inaccessible)', url: `${FIXTURE_BASE}/before/survey.html` },
+  { label: 'W3C BAD demo – Home (fixed)', url: `${FIXTURE_BASE}/after/home.html` },
+]
+
+// Restores the form when the user comes Back from a report.
+const FORM_STORAGE_KEY = 'analyzerForm'
+
+interface StoredForm {
+  url?: string
+  method?: ScanMethod
+  /** Only set when the user picked a model here, overriding the Settings default. */
+  model?: AiModel
+  /** When the user picked `model` (ms epoch); compared with the Settings save time. */
+  modelSetAt?: number
+}
+
+function readStoredForm(): StoredForm {
   try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
+    const raw = sessionStorage.getItem(FORM_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as StoredForm
+    const model = MODELS.some((m) => m.value === parsed.model) ? parsed.model : undefined
+    const modelSetAt = typeof parsed.modelSetAt === 'number' ? parsed.modelSetAt : undefined
+    // A model saved in Settings after the Analyzer override wins.
+    const overrideValid = !!model && !!modelSetAt && modelSetAt > readAiModelSavedAt()
+    return {
+      url: typeof parsed.url === 'string' ? parsed.url : undefined,
+      method: parsed.method && parsed.method in METHOD_LABELS ? parsed.method : undefined,
+      model: overrideValid ? model : undefined,
+      modelSetAt: overrideValid ? modelSetAt : undefined,
+    }
   } catch {
-    return false
+    return {}
   }
+}
+
+function writeStoredForm(form: StoredForm) {
+  try {
+    sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(form))
+  } catch {
+    // Storage unavailable: the form just will not be restored.
+  }
+}
+
+const BOT_BLOCK_PATTERN =
+  // Includes "Target site responded with HTTP 403" / 429 (rate limiting).
+  /\bbot\b|challenge|captcha|blocked|cloudflare|forbidden|access denied|too many requests|\b(403|429)\b/i
+
+/**
+ * Maps a failed scan response to a message that tells the user what to do next.
+ * A specific backend explanation (`{"error": ...}`) is always shown as-is, for every status;
+ * generic texts are only used when the body is empty or a proxy (nginx/Vite) error page.
+ */
+async function scanErrorMessage(res: Response, method: ScanMethod): Promise<string> {
+  const { message, fromBackend } = await readApiErrorDetail(res)
+
+  if (fromBackend) {
+    const botHint = BOT_BLOCK_PATTERN.test(message)
+      ? ' The site may be blocking automated browsers; try another URL or a sample page.'
+      : ''
+    switch (res.status) {
+      case 400:
+        return `The scan request was rejected: ${message}`
+      case 401:
+        return message
+      case 502:
+      case 504:
+        return `The site could not be audited: ${message}${botHint}`
+      case 503:
+        return method === 'AXE' ? message : withAxeNote(message, 'Axe-Core still works.')
+      default:
+        return `The scan failed: ${message}${botHint}`
+    }
+  }
+
+  switch (res.status) {
+    case 400:
+      return 'The scan request was rejected. Check the URL and the selected method/AI model.'
+    case 504:
+      return method === 'AXE'
+        ? 'The scan took too long and the proxy stopped waiting for the server. Try again, or try another page.'
+        : 'The scan took too long and the proxy stopped waiting for the server. Try again, or use the faster Axe-Core method.'
+    case 500:
+      return 'The scan failed on the server. The page may not have loaded in time, or the AI service returned an error. Check the backend logs and try again.'
+    default:
+      return message
+  }
+}
+
+function progressHint(method: ScanMethod, seconds: number): string {
+  if (seconds < 5) return 'Opening the page in a headless browser…'
+  if (method === 'AXE') return 'Running Axe-Core rules on the page…'
+  if (seconds < 15) return 'Capturing the page and running the checks…'
+  return 'Waiting for the AI model to analyze the page. This can take a minute or more…'
 }
 
 function AnalyzerForm() {
   const navigate = useNavigate()
   const { aiModel: defaultModel } = useSettings()
+  const aiStatus = useAiStatus()
 
-  const [url, setUrl] = useState('')
-  const [method, setMethod] = useState<ScanMethod>('AXE')
-  const [model, setModel] = useState<AiModel>(defaultModel)
+  const [stored] = useState(readStoredForm)
+  const [url, setUrl] = useState(stored.url ?? '')
+  const [method, setMethod] = useState<ScanMethod>(stored.method ?? 'AXE')
+  const [model, setModelState] = useState<AiModel>(stored.model ?? defaultModel)
+  const [modelSetAt, setModelSetAt] = useState<number | undefined>(stored.modelSetAt)
+  const setModel = (m: AiModel) => {
+    setModelState(m)
+    setModelSetAt(Date.now())
+  }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [urlError, setUrlError] = useState<string | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const abortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    // The model is stored only as an explicit override, so a later Settings save takes effect.
+    writeStoredForm(modelSetAt ? { url, method, model, modelSetAt } : { url, method })
+  }, [url, method, model, modelSetAt])
+
+  useEffect(() => {
+    if (!loading) return
+    setElapsed(0)
+    const started = Date.now()
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000)
+    return () => clearInterval(timer)
+  }, [loading])
+
+  // The request is deliberately NOT aborted on unmount: the server finishes the scan regardless
+  // and it shows up in History. We only stop touching state / navigating once unmounted.
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const showModel = method === 'AI' || method === 'COMBINED'
+  const aiWarning = showModel && isAiUnavailable(aiStatus) ? aiStatus.message : null
 
   function handleUrlChange(value: string) {
     setUrl(value)
-    if (urlError && isValidUrl(value)) {
+    if (urlError && normalizeUrl(value)) {
       setUrlError(null)
     }
   }
@@ -54,16 +184,20 @@ function AnalyzerForm() {
     e.preventDefault()
     setError(null)
 
-    if (!isValidUrl(url)) {
-      setUrlError('Please enter a valid http:// or https:// URL.')
+    const normalized = normalizeUrl(url)
+    if (!normalized) {
+      setUrlError('Please enter a valid web address, e.g. example.com or https://example.com.')
       return
     }
     setUrlError(null)
+    if (normalized !== url) setUrl(normalized)
 
+    const controller = new AbortController()
+    abortRef.current = controller
     setLoading(true)
     try {
       const body: { url: string; method: ScanMethod; model?: AiModel } = {
-        url,
+        url: normalized,
         method,
       }
       if (showModel) {
@@ -73,26 +207,29 @@ function AnalyzerForm() {
       const response = await apiFetch('/api/scans', {
         method: 'POST',
         body: JSON.stringify(body),
+        signal: controller.signal,
       })
 
       if (!response.ok) {
-        let message = `Request failed: ${response.status} ${response.statusText}`
-        try {
-          const errBody = await response.json() as { error?: string; message?: string }
-          message = errBody.error ?? errBody.message ?? message
-        } catch {
-          // ignore parse errors
-        }
-        throw new Error(message)
+        throw new Error(await scanErrorMessage(response, method))
       }
 
       const data = await response.json() as ScanResponse
-      navigate(`/report/${data.id}`)
+      if (mountedRef.current) navigate(`/report/${data.id}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
+      if (controller.signal.aborted || !mountedRef.current) return
+      setError(networkErrorMessage(err))
     } finally {
-      setLoading(false)
+      if (abortRef.current === controller) abortRef.current = null
+      if (!controller.signal.aborted && mountedRef.current) setLoading(false)
     }
+  }
+
+  function handleCancel() {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setLoading(false)
+    setError('Stopped waiting. The server may still finish the scan; it will then appear in History.')
   }
 
   return (
@@ -103,10 +240,12 @@ function AnalyzerForm() {
         </label>
         <input
           id="analyzer-url"
-          type="url"
+          type="text"
+          inputMode="url"
+          autoComplete="url"
           value={url}
           onChange={(e) => handleUrlChange(e.target.value)}
-          placeholder="https://example.com"
+          placeholder="example.com or https://example.com"
           required
           aria-describedby={urlError ? 'analyzer-url-error' : undefined}
           aria-invalid={urlError ? 'true' : undefined}
@@ -121,6 +260,27 @@ function AnalyzerForm() {
             {urlError}
           </span>
         )}
+        <div style={styles.sampleRow}>
+          <label htmlFor="analyzer-sample" style={styles.sampleLabel}>
+            Try a sample page:
+          </label>
+          <select
+            id="analyzer-sample"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) handleUrlChange(e.target.value)
+            }}
+            disabled={loading}
+            style={styles.sampleSelect}
+          >
+            <option value="">Choose a local test page…</option>
+            {SAMPLE_PAGES.map((p) => (
+              <option key={p.url} value={p.url}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <fieldset style={styles.fieldset}>
@@ -142,6 +302,12 @@ function AnalyzerForm() {
           ))}
         </div>
       </fieldset>
+
+      {aiWarning && (
+        <div role="status" style={styles.warningBanner}>
+          <strong>AI analysis is unavailable:</strong> {withAxeNote(aiWarning, 'Axe-Core still works.')}
+        </div>
+      )}
 
       {showModel && (
         <div style={styles.field}>
@@ -170,19 +336,47 @@ function AnalyzerForm() {
         </div>
       )}
 
-      <button type="submit" disabled={loading} style={styles.button}>
-        {loading ? (
-          <>
-            <span style={styles.spinner} aria-hidden="true" />
-            Analyzing…
-          </>
-        ) : (
-          'Analyze'
+      <div style={styles.actions}>
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ ...styles.button, ...(loading ? styles.buttonBusy : {}) }}
+        >
+          {loading ? (
+            <>
+              <span style={styles.spinner} aria-hidden="true" />
+              Analyzing… {elapsed}s
+            </>
+          ) : (
+            'Analyze'
+          )}
+        </button>
+        {loading && (
+          <button type="button" onClick={handleCancel} style={styles.cancelButton}>
+            Stop waiting
+          </button>
         )}
-      </button>
+      </div>
+
+      {loading && (
+        <div role="status" aria-live="polite" style={styles.progress}>
+          <p style={{ margin: 0 }}>
+            {progressHint(method, elapsed)}{' '}
+            {method === 'AXE'
+              ? 'Axe-Core scans usually take 10–30 seconds.'
+              : 'AI and combined scans usually take 30–120 seconds.'}{' '}
+            You will be taken to the report when it is ready.
+          </p>
+          <p style={{ margin: '0.25rem 0 0' }}>
+            You can leave this page — the scan keeps running on the server and will appear in History.
+          </p>
+        </div>
+      )}
     </form>
   )
 }
+
+const BORDER = '#ccc'
 
 const styles: Record<string, React.CSSProperties> = {
   form: {
@@ -206,12 +400,15 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '0.5rem',
     padding: 0,
   },
+  // Longhand border properties so inputError can override the colour without
+  // React's "mixing shorthand and non-shorthand" warning.
   input: {
     padding: '0.5rem 0.75rem',
     fontSize: '1rem',
-    border: '1px solid #ccc',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: BORDER,
     borderRadius: '4px',
-    outline: 'none',
   },
   inputError: {
     borderColor: '#d32f2f',
@@ -219,13 +416,37 @@ const styles: Record<string, React.CSSProperties> = {
   select: {
     padding: '0.5rem 0.75rem',
     fontSize: '1rem',
-    border: '1px solid #ccc',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: BORDER,
     borderRadius: '4px',
   },
+  sampleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    flexWrap: 'wrap',
+    fontSize: '0.85rem',
+  },
+  sampleLabel: {
+    color: '#4a5568',
+  },
+  sampleSelect: {
+    padding: '0.25rem 0.5rem',
+    fontSize: '0.85rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: BORDER,
+    borderRadius: '4px',
+    maxWidth: '100%',
+  },
   fieldset: {
-    border: '1px solid #ccc',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: BORDER,
     borderRadius: '4px',
     padding: '0.75rem 1rem',
+    margin: 0,
   },
   radioGroup: {
     display: 'flex',
@@ -241,6 +462,30 @@ const styles: Record<string, React.CSSProperties> = {
   },
   radioInput: {
     cursor: 'pointer',
+  },
+  actions: {
+    display: 'flex',
+    gap: '0.75rem',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  buttonBusy: {
+    cursor: 'progress',
+    opacity: 0.85,
+  },
+  cancelButton: {
+    padding: '0.6rem 1.25rem',
+    fontSize: '1rem',
+    background: '#fff',
+    color: '#1976d2',
+    border: '1px solid #1976d2',
+    borderRadius: '4px',
+    cursor: 'pointer',
+  },
+  progress: {
+    margin: 0,
+    color: '#4a5568',
+    fontSize: '0.9rem',
   },
   button: {
     alignSelf: 'flex-start',
@@ -261,6 +506,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#d32f2f',
     fontSize: '0.85rem',
   },
+  warningBanner: {
+    background: '#fffbeb',
+    color: '#92400e',
+    border: '1px solid #fcd34d',
+    borderRadius: '4px',
+    padding: '0.75rem 1rem',
+    fontSize: '0.9rem',
+  },
   errorBanner: {
     background: '#fdecea',
     color: '#d32f2f',
@@ -273,7 +526,9 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-block',
     width: '14px',
     height: '14px',
-    border: '2px solid rgba(255,255,255,0.4)',
+    borderWidth: '2px',
+    borderStyle: 'solid',
+    borderColor: 'rgba(255,255,255,0.4)',
     borderTopColor: '#fff',
     borderRadius: '50%',
     animation: 'spin 0.7s linear infinite',

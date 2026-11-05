@@ -4,6 +4,7 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.PlaywrightException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -11,7 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import usv.dizertatie.ai.AiAnalysisService;
 import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.ai.AiKeyMissingException;
 import usv.dizertatie.ai.AiResponseParser;
+import usv.dizertatie.ai.AiStatusService;
 import usv.dizertatie.ai.PromptLoader;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
@@ -52,9 +55,10 @@ public class ScanService {
     private final PromptLoader promptLoader;
     private final SeverityScoringService severityScoringService;
     private final FindingMergeService findingMergeService;
+    private final AiStatusService aiStatusService;
 
     /**
-     * Returns a paginated list of all scans ordered by timestamp descending.
+     * Returns a paginated list of the scans users ran (benchmark-run scans excluded), newest first.
      * Each item includes summary metadata only (no finding details).
      *
      * @param page zero-based page index
@@ -64,7 +68,7 @@ public class ScanService {
     @Transactional(readOnly = true)
     public ScanHistoryResponse findAll(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        var scanPage = scanRepository.findAllByOrderByTimestampDesc(pageable);
+        var scanPage = scanRepository.findUserScansNewestFirst(pageable);
 
         List<ScanSummaryResponse> content = scanPage.getContent().stream()
                 .map(scan -> {
@@ -106,21 +110,24 @@ public class ScanService {
         String violationsJson;
         String browserVersion;
 
-        Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
-        Browser.NewContextOptions contextOptions = new Browser.NewContextOptions().setBypassCSP(true);
-        BrowserContext context = browser.newContext(contextOptions);
-        Page page = null;
-        try {
-            page = context.newPage();
-            PageNavigator.open(page, url);
+        // Playwright is not thread-safe: every use of the shared Playwright instance is serialised.
+        synchronized (browserType) {
+            Browser browser = null;
+            try {
+                browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+                BrowserContext context = browser.newContext(new Browser.NewContextOptions().setBypassCSP(true));
+                Page page = context.newPage();
+                PageNavigator.open(page, url);
 
-            browserVersion = browser.browserType().name() + "/" + browser.version();
+                browserVersion = browser.browserType().name() + "/" + browser.version();
 
-            // Run axe-core on the already-loaded page
-            violationsJson = axeService.run(page);
-        } finally {
-            context.close();
-            browser.close();
+                // Run axe-core on the already-loaded page
+                violationsJson = axeService.run(page);
+            } catch (PlaywrightException e) {
+                throw PageNavigator.loadFailure(url, e);
+            } finally {
+                closeQuietly(browser);
+            }
         }
 
         List<Finding> findings = axeResultParser.parse(violationsJson);
@@ -130,7 +137,7 @@ public class ScanService {
                 .method("AXE")
                 .axeVersion(AxeService.AXE_VERSION)
                 .browserVersion(browserVersion)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                 .build();
         scan = scanRepository.save(scan);
 
@@ -156,6 +163,7 @@ public class ScanService {
      */
     @Transactional
     public Scan runAiScan(String url, AiModel model) {
+        requireAiKey();
         PageCapture capture = pageCaptureService.capture(url);
         String rawJson = aiAnalysisService.analyze(capture, model);
         List<Finding> findings = aiResponseParser.parse(rawJson);
@@ -166,7 +174,7 @@ public class ScanService {
                 .modelId(model.getModelId())
                 .promptVersion(promptLoader.getVersion())
                 .rawAiResponse(rawJson)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                 .build();
         scan = scanRepository.save(scan);
 
@@ -194,26 +202,30 @@ public class ScanService {
      */
     @Transactional
     public Scan runCombinedScan(String url, AiModel model) {
+        requireAiKey();
         String violationsJson;
         String html;
         byte[] screenshotPng;
         String browserVersion;
 
-        Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
-        Browser.NewContextOptions contextOptions = new Browser.NewContextOptions().setBypassCSP(true);
-        BrowserContext context = browser.newContext(contextOptions);
-        Page page = null;
-        try {
-            page = context.newPage();
-            PageNavigator.open(page, url);
+        // Playwright is not thread-safe: every use of the shared Playwright instance is serialised.
+        synchronized (browserType) {
+            Browser browser = null;
+            try {
+                browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+                BrowserContext context = browser.newContext(new Browser.NewContextOptions().setBypassCSP(true));
+                Page page = context.newPage();
+                PageNavigator.open(page, url);
 
-            browserVersion = browser.browserType().name() + "/" + browser.version();
-            html = page.content();
-            screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
-            violationsJson = axeService.run(page);
-        } finally {
-            context.close();
-            browser.close();
+                browserVersion = browser.browserType().name() + "/" + browser.version();
+                html = page.content();
+                screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
+                violationsJson = axeService.run(page);
+            } catch (PlaywrightException e) {
+                throw PageNavigator.loadFailure(url, e);
+            } finally {
+                closeQuietly(browser);
+            }
         }
 
         List<Finding> axeFindings = axeResultParser.parse(violationsJson);
@@ -231,7 +243,7 @@ public class ScanService {
                 .modelId(model.getModelId())
                 .promptVersion(promptLoader.getVersion())
                 .rawAiResponse(rawJson)
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                 .build();
         scan = scanRepository.save(scan);
 
@@ -240,6 +252,29 @@ public class ScanService {
         findingRepository.saveAll(mergedFindings);
 
         return savedScan;
+    }
+
+    /**
+     * Refuses AI work up front when no usable OpenAI key is configured (same local check as
+     * {@code GET /ai/status}, no network call), instead of capturing the page and sending a
+     * placeholder key to OpenAI. COMBINED is refused too rather than silently returning AXE only.
+     */
+    private void requireAiKey() {
+        if (aiStatusService != null && aiStatusService.isKeyMissing()) {
+            throw new AiKeyMissingException();
+        }
+    }
+
+    /** Closing the browser also closes its contexts and pages; a failure here must not mask the scan result. */
+    private static void closeQuietly(Browser browser) {
+        if (browser == null) {
+            return;
+        }
+        try {
+            browser.close();
+        } catch (PlaywrightException ignored) {
+            // browser already gone
+        }
     }
 
     /**

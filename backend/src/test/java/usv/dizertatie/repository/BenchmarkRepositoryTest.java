@@ -119,4 +119,31 @@ class BenchmarkRepositoryTest {
         }
         assertThat(newerIndex).isLessThan(olderIndex);
     }
+
+    @Autowired
+    private ScanRepository scanRepository;
+
+    @Test
+    void findUserScansNewestFirst_excludesScansCreatedByBenchmarkRuns() {
+        usv.dizertatie.domain.Scan userOld = scanRepository.save(usv.dizertatie.domain.Scan.builder()
+                .url("https://user.example").method("AXE").timestamp(LocalDateTime.of(2026, 10, 1, 9, 0)).build());
+        usv.dizertatie.domain.Scan userNew = scanRepository.save(usv.dizertatie.domain.Scan.builder()
+                .url("https://user.example").method("AXE").timestamp(LocalDateTime.of(2026, 10, 2, 9, 0)).build());
+        usv.dizertatie.domain.Scan benchAxe = scanRepository.save(usv.dizertatie.domain.Scan.builder()
+                .url("https://bench.example").method("AXE").timestamp(LocalDateTime.of(2026, 10, 3, 9, 0)).build());
+        usv.dizertatie.domain.Scan benchCombined = scanRepository.save(usv.dizertatie.domain.Scan.builder()
+                .url("https://bench.example").method("COMBINED").timestamp(LocalDateTime.of(2026, 10, 3, 9, 5)).build());
+
+        BenchmarkRun run = benchmarkRunRepository.save(BenchmarkRun.builder()
+                .name("R").status("COMPLETE").createdAt(LocalDateTime.of(2026, 10, 3, 9, 0))
+                .totalPages(1).pagesDone(1).methods("AXE,COMBINED").errorSummary(null).build());
+        benchmarkPageRepository.save(BenchmarkPage.builder().run(run).url("https://bench.example").status("DONE")
+                .axeScanId(benchAxe.getId()).combinedScanId(benchCombined.getId()).build());
+
+        var page = scanRepository.findUserScansNewestFirst(org.springframework.data.domain.PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).extracting(usv.dizertatie.domain.Scan::getId)
+                .containsExactly(userNew.getId(), userOld.getId());
+        assertThat(page.getTotalElements()).isEqualTo(2);
+    }
 }

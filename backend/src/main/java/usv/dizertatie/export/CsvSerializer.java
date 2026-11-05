@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
 
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -29,7 +30,7 @@ public class CsvSerializer {
             sb.append(',');
             sb.append(csvFieldEscaper.escape(scan.getMethod()));
             sb.append(',');
-            sb.append(csvFieldEscaper.escape(scan.getTimestamp() == null ? "" : scan.getTimestamp().toString()));
+            sb.append(csvFieldEscaper.escape(scan.getTimestamp() == null ? "" : scan.getTimestamp().toInstant(ZoneOffset.UTC).toString()));
             sb.append(',');
             sb.append(csvFieldEscaper.escape(f.getSourceMethod()));
             sb.append(',');

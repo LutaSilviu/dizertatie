@@ -1,8 +1,4 @@
-/* Page layout */
-.page {
-  max-width: 1100px;
-  margin: 0 auto;
-}
+/* Page width/alignment come from the global .app-page container (index.css). */
 
 /* Top bar: back link + export button */
 .topBar {
@@ -273,28 +269,42 @@
   font-weight: 600;
 }
 
-.sevlow,
-.sevLow {
+/* Keys are the lowercase severity strings from the backend (axe impact levels). */
+.sevminor {
   background: #c6f6d5;
   color: #22543d;
 }
 
-.sevmedium,
-.sevMedium {
+.sevmoderate {
   background: #feebc8;
   color: #7b341e;
 }
 
-.sevhigh,
-.sevHigh {
+.sevserious {
   background: #fed7d7;
   color: #822727;
 }
 
-.sevcritical,
-.sevCritical {
+.sevcritical {
   background: #e53e3e;
   color: #fff;
+}
+
+.sevunknown {
+  background: #edf2f7;
+  color: #4a5568;
+}
+
+.scoreHint {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #718096;
+}
+
+.topLinks {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 /* Element selector code */
@@ -361,87 +371,15 @@
   }
 }
 
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  .pageTitle {
-    color: #e2e8f0;
-  }
 
-  .metaList {
-    background: #1a202c;
-    border-color: #2d3748;
-  }
+/* Conformance level that the scan method does not test (AAA for Axe-only scans) */
+.notTested .conformanceLabel,
+.notTested .conformanceValue {
+  color: #a0aec0;
+}
 
-  .metaItem dt {
-    color: #a0aec0;
-  }
-
-  .metaItem dd {
-    color: #e2e8f0;
-  }
-
-  .sectionTitle {
-    color: #e2e8f0;
-    border-color: #2d3748;
-  }
-
-  .severityBar {
-    background: #2d3748;
-  }
-
-  .severityBadge {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .conformanceBar {
-    background: #2d3748;
-  }
-
-  .conformanceFill {
-    background: #63b3ed;
-  }
-
-  .conformanceLabel {
-    color: #a0aec0;
-  }
-
-  .conformanceValue {
-    color: #e2e8f0;
-  }
-
-  .tableWrapper {
-    border-color: #2d3748;
-  }
-
-  .table th {
-    background: #2d3748;
-    color: #a0aec0;
-  }
-
-  .table td {
-    color: #e2e8f0;
-    border-color: #2d3748;
-  }
-
-  .table tbody tr:hover {
-    background: #1a202c;
-  }
-
-  .selector {
-    background: #2d3748;
-    color: #e2e8f0;
-  }
-
-  .statusContainer {
-    color: #a0aec0;
-  }
-
-  .spinner {
-    border-color: #2d3748;
-    border-top-color: #63b3ed;
-  }
-
-  .backLink {
-    color: #63b3ed;
-  }
+.notTestedText {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #a0aec0;
 }

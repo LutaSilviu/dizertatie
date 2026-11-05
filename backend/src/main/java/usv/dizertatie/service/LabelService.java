@@ -9,6 +9,8 @@ import usv.dizertatie.controller.LabelResponse;
 import usv.dizertatie.domain.GroundTruthLabel;
 import usv.dizertatie.repository.GroundTruthLabelRepository;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Service
@@ -30,6 +32,12 @@ public class LabelService {
     }
 
     public LabelResponse create(LabelRequest request) {
+        if (request.url() == null || request.url().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Label url is required");
+        }
+        if (request.wcagCriterion() == null || request.wcagCriterion().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Label wcagCriterion is required");
+        }
         GroundTruthLabel label = GroundTruthLabel.builder()
                 .url(request.url())
                 .wcagCriterion(request.wcagCriterion())
@@ -39,6 +47,7 @@ public class LabelService {
                 .annotator(request.annotator())
                 .verifiedBy(request.verifiedBy())
                 .confidence(request.confidence())
+                .createdAt(LocalDateTime.now(ZoneOffset.UTC))
                 .build();
         return toResponse(repository.save(label));
     }

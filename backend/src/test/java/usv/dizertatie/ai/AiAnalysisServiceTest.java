@@ -104,4 +104,23 @@ class AiAnalysisServiceTest {
         assertThat(captured.media.get(0).getDataAsByteArray()).isEqualTo(SCREENSHOT);
         assertThat(captured.media.get(0).getMimeType().toString()).isEqualTo("image/png");
     }
+
+    @Test
+    void htmlForPrompt_smallPage_isSentUnchanged() {
+        String html = "<html><head><script>var a=1;</script></head><body><p>x</p></body></html>";
+        assertThat(AiAnalysisService.htmlForPrompt(html)).isEqualTo(html);
+    }
+
+    @Test
+    void htmlForPrompt_hugePage_dropsScriptsStylesAndTruncates() {
+        String bigScript = "<script>" + "x".repeat(AiAnalysisService.MAX_PROMPT_HTML_CHARS) + "</script>";
+        String html = "<html><head>" + bigScript + "<style>.a{}</style></head><body><img src='a.png'></body></html>";
+        String reduced = AiAnalysisService.htmlForPrompt(html);
+        assertThat(reduced).doesNotContain("<script").doesNotContain("<style").contains("<img src='a.png'>");
+
+        String body = "<p>" + "y".repeat(AiAnalysisService.MAX_PROMPT_HTML_CHARS * 2) + "</p>";
+        String truncated = AiAnalysisService.htmlForPrompt(body);
+        assertThat(truncated.length()).isLessThan(AiAnalysisService.MAX_PROMPT_HTML_CHARS + 200);
+        assertThat(truncated).contains("document truncated");
+    }
 }

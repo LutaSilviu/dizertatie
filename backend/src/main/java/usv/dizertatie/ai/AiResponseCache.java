@@ -31,7 +31,19 @@ public class AiResponseCache {
      */
     public String getOrCompute(String html, AiModel model, String promptVersion, Supplier<String> apiCall) {
         String key = computeKey(html, model.getModelId(), promptVersion);
-        return cache.computeIfAbsent(key, k -> apiCall.get());
+        String cached = cache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        // Not computeIfAbsent: that would hold a map lock for the whole (slow) OpenAI call and
+        // block unrelated scans whose keys share the bin. Two identical concurrent misses may both
+        // call the API; the first stored response wins so later reads stay consistent.
+        String fresh = apiCall.get();
+        if (fresh == null) {
+            return null;
+        }
+        String previous = cache.putIfAbsent(key, fresh);
+        return previous != null ? previous : fresh;
     }
 
     /**

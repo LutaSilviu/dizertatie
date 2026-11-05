@@ -12,8 +12,10 @@ public record ScanResponse(
         Long id,
         @Schema(description = "The URL that was scanned", example = "https://example.com")
         String url,
-        @Schema(description = "Scan method used: AXE or AI", example = "AXE")
+        @Schema(description = "Scan method used: AXE, AI or COMBINED", example = "AXE")
         String method,
+        @Schema(description = "AI model used (null for AXE scans)", example = "gpt-6-luna")
+        String model,
         @Schema(description = "Timestamp when the scan was completed (ISO-8601 UTC)")
         Instant timestamp,
         @Schema(description = "Aggregate severity score (0–100, higher is better)", example = "76.3")

@@ -9,7 +9,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import usv.dizertatie.ai.AiAnalysisService;
 import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.ai.AiKeyMissingException;
 import usv.dizertatie.ai.AiResponseParser;
+import usv.dizertatie.ai.AiStatusService;
 import usv.dizertatie.ai.PromptLoader;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
@@ -46,6 +48,7 @@ class ScanServiceTest {
     @Mock private PromptLoader promptLoader;
     @Mock private SeverityScoringService severityScoringService;
     @Mock private FindingMergeService findingMergeService;
+    @Mock private AiStatusService aiStatusService;
 
     @InjectMocks private ScanService scanService;
 
@@ -67,5 +70,18 @@ class ScanServiceTest {
         assertThat(captor.getValue().screenshotPng())
                 .as("the screenshot captured from the page must reach the AI analysis")
                 .isEqualTo(SCREENSHOT);
+    }
+
+    @Test
+    void aiAndCombinedScans_withMissingKey_areRefusedBeforeAnyBrowserOrOpenAiWork() {
+        when(aiStatusService.isKeyMissing()).thenReturn(true);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> scanService.runAiScan(URL, AiModel.GPT4O))
+                .isInstanceOf(AiKeyMissingException.class)
+                .hasMessage(usv.dizertatie.error.FailureMessages.OPENAI_KEY_MISSING);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> scanService.runCombinedScan(URL, AiModel.GPT4O))
+                .isInstanceOf(AiKeyMissingException.class);
+
+        org.mockito.Mockito.verifyNoInteractions(pageCaptureService, browserType, aiAnalysisService, scanRepository);
     }
 }

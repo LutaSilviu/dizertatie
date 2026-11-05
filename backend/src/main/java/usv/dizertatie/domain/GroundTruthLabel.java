@@ -26,6 +26,8 @@ public class GroundTruthLabel {
 
     private String severity;
 
+    // axe-style selectors exceed the 255-character default; the Postgres column is TEXT (V1).
+    @Column(length = 1024)
     private String elementSelector;
 
     private String annotator;
@@ -33,6 +35,10 @@ public class GroundTruthLabel {
     private String verifiedBy;
 
     private Double confidence;
+
+    /** Why the element fails the criterion (from the dataset); shown with false-negative examples. */
+    @Column(columnDefinition = "TEXT")
+    private String rationale;
 
     private LocalDateTime createdAt;
 }

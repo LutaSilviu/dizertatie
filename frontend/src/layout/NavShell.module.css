@@ -93,13 +93,10 @@
   box-sizing: border-box;
 }
 
-/* Responsive: collapse nav on small screens */
+/* Responsive: collapse nav into a dropdown panel below the header on small screens */
 @media (max-width: 640px) {
   .nav {
-    flex-wrap: wrap;
-    height: auto;
-    padding: 0.5rem 1rem;
-    gap: 0;
+    position: relative;
   }
 
   .brand {
@@ -113,10 +110,16 @@
 
   .navList {
     display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
     flex-direction: column;
-    width: 100%;
-    padding: 0.5rem 0 0.25rem;
-    gap: 0.1rem;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem 0.75rem;
+    background-color: #1a1a2e;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
   }
 
   .navList.navListOpen {
@@ -124,6 +127,8 @@
   }
 
   .navLink {
-    padding: 0.6rem 0.5rem;
+    width: 100%;
+    padding: 0.75rem 0.75rem;
+    font-size: 1rem;
   }
 }

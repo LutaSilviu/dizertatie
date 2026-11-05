@@ -50,7 +50,7 @@ public class AiAnalysisService {
                         .prompt()
                         .system(systemPrompt)
                         .user(userSpec -> userSpec
-                                .text(capture.html())
+                                .text(htmlForPrompt(capture.html()))
                                 .media(screenshotMedia(capture.screenshotPng())))
                         .call()
                         .content();
@@ -58,6 +58,39 @@ public class AiAnalysisService {
                 throw new AiAnalysisException("AI analysis failed for model " + model.getModelId(), e);
             }
         });
+    }
+
+    /**
+     * Upper bound on the HTML sent to the model (~50k tokens). Real-world pages often ship
+     * megabytes of inline scripts and styles, which would exceed the model's context window
+     * and fail the whole scan.
+     */
+    static final int MAX_PROMPT_HTML_CHARS = 200_000;
+
+    private static final java.util.regex.Pattern NOISE = java.util.regex.Pattern.compile(
+            "(?is)<script\\b[^>]*>.*?</script>|<style\\b[^>]*>.*?</style>|<!--.*?-->");
+
+    /** Keeps the {@code <svg>} element (and its title/aria attributes) but drops its drawing data. */
+    private static final java.util.regex.Pattern SVG_BODY = java.util.regex.Pattern.compile(
+            "(?is)(<svg\\b[^>]*>).*?(</svg>)");
+
+    /**
+     * Returns the HTML unchanged when it fits; otherwise drops script and style bodies,
+     * comments and inline SVG drawing data (none of which the audit needs) and, if still too
+     * long, truncates with a marker so the model knows the document was cut.
+     */
+    static String htmlForPrompt(String html) {
+        if (html == null || html.length() <= MAX_PROMPT_HTML_CHARS) {
+            return html;
+        }
+        String reduced = NOISE.matcher(html).replaceAll("");
+        reduced = SVG_BODY.matcher(reduced).replaceAll("$1$2");
+        if (reduced.length() <= MAX_PROMPT_HTML_CHARS) {
+            return reduced;
+        }
+        return reduced.substring(0, MAX_PROMPT_HTML_CHARS)
+                + "\n<!-- [document truncated: " + (reduced.length() - MAX_PROMPT_HTML_CHARS)
+                + " more characters not shown] -->";
     }
 
     private static Media screenshotMedia(byte[] screenshotPng) {

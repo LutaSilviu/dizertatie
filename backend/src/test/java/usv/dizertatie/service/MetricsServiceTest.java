@@ -206,20 +206,94 @@ class MetricsServiceTest {
     }
 
     /**
-     * No pages in the run → all metrics should be zero with no exceptions.
+     * No pages in the run: no exceptions, and no method has results, so none is reported
+     * (methods without a successful page are omitted).
      */
     @Test
-    void compute_noPages_returnsZeroMetrics() {
+    void compute_noPages_reportsNoMethods() {
         when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of());
 
         BenchmarkMetrics metrics = service.compute(run);
 
-        for (String method : MetricsService.METHODS) {
-            MethodMetrics m = metrics.methods().get(method);
-            assertThat(m.precision()).isEqualTo(0.0, offset(1e-9));
-            assertThat(m.recall()).isEqualTo(0.0, offset(1e-9));
-            assertThat(m.f1()).isEqualTo(0.0, offset(1e-9));
-        }
+        assertThat(metrics.methods()).isEmpty();
         assertThat(metrics.byCategory()).isEmpty();
+    }
+
+    /**
+     * AI failed on every page (no scan id): AI is omitted from the metrics, and the missing AI
+     * scan is not counted as false negatives for AXE or anyone else.
+     */
+    @Test
+    void compute_methodWithoutResults_isOmitted_andFailedPagesAreNotCountedAsMisses() {
+        BenchmarkPage axeOnly = BenchmarkPage.builder()
+                .id(11L).run(run).url(URL).status("DONE").axeScanId(1L).build();
+        GroundTruthLabel gt = label("1.1.1", "#img");
+        Finding f = finding(1L, "1.1.1", "#img");
+
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(axeOnly));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of(gt));
+        when(findingRepository.findByScanId(1L)).thenReturn(List.of(f));
+        when(benchmarkPageRepository.avgLatencyAiMsByRunId(run.getId())).thenReturn(1234.0);
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        assertThat(metrics.methods()).containsOnlyKeys("AXE");
+        assertThat(metrics.methods().get("AXE").recall()).isEqualTo(1.0, offset(1e-9));
+        assertThat(metrics.byCategory().get("Perceivable")).containsOnlyKeys("AXE");
+        assertThat(metrics.falseNegativeExamples()).isEmpty();
+        assertThat(metrics.avgLatencyMs()).doesNotContainKey("AI");
+    }
+
+    @Test
+    void compute_fpExamplesAreCappedPerMethod() {
+        List<Finding> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            many.add(finding(1L, "2.1.1", "#fp" + i));
+        }
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(page));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of());
+        when(findingRepository.findByScanId(anyLong())).thenReturn(many);
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        for (String method : MetricsService.METHODS) {
+            assertThat(metrics.falsePositiveExamples().stream().filter(e -> e.method().equals(method)).count())
+                    .as(method).isEqualTo(MetricsService.MAX_EXAMPLES);
+        }
+    }
+
+    @Test
+    void compute_examplesAreSampledRoundRobinAcrossCriteria() {
+        List<Finding> findings = new java.util.ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            findings.add(finding(1L, "2.5.8", "#target" + i));   // one very frequent issue
+        }
+        findings.add(finding(1L, "1.4.3", "#contrast"));
+        findings.add(finding(1L, "4.1.2", "#name"));
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(page));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of());
+        when(findingRepository.findByScanId(anyLong())).thenReturn(findings);
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        List<FpFnExample> axe = metrics.falsePositiveExamples().stream()
+                .filter(e -> e.method().equals("AXE")).toList();
+        assertThat(axe).hasSize(MetricsService.MAX_EXAMPLES);
+        assertThat(axe).extracting(FpFnExample::wcagCriterion).startsWith("2.5.8", "1.4.3", "4.1.2")
+                .contains("1.4.3", "4.1.2");
+    }
+
+    @Test
+    void compute_fnExamplesCarryTheLabelRationale() {
+        GroundTruthLabel gt = label("1.1.1", "#logo");
+        gt.setRationale("logo image has no text alternative");
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(page));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of(gt));
+        when(findingRepository.findByScanId(anyLong())).thenReturn(List.of());
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        assertThat(metrics.falseNegativeExamples()).isNotEmpty()
+                .allMatch(e -> "logo image has no text alternative".equals(e.description()));
     }
 }

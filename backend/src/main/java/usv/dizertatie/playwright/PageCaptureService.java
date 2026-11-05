@@ -3,6 +3,7 @@ package usv.dizertatie.playwright;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.PlaywrightException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,23 +29,44 @@ public class PageCaptureService {
      * @throws PageCaptureException if the page cannot be reached or any error occurs
      */
     public PageCapture capture(String url) {
-        Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
-        Page page = null;
+        // Playwright is not thread-safe: every use of the shared Playwright instance is serialised
+        // (ScanService locks on the same BrowserType bean).
+        synchronized (browserType) {
+            Browser browser = null;
+            Page page = null;
+            try {
+                browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+                page = browser.newPage();
+                PageNavigator.open(page, url);
+                String html = page.content();
+                byte[] screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
+                return new PageCapture(html, screenshotPng);
+            } catch (PageBlockedException e) {
+                throw e;
+            } catch (PlaywrightException e) {
+                throw PageNavigator.loadFailure(url, e);
+            } catch (Exception e) {
+                throw new PageCaptureException("Failed to capture page from URL: " + url, e);
+            } finally {
+                closeQuietly(page, browser);
+            }
+        }
+    }
+
+    private static void closeQuietly(Page page, Browser browser) {
         try {
-            page = browser.newPage();
-            PageNavigator.open(page, url);
-            String html = page.content();
-            byte[] screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
-            return new PageCapture(html, screenshotPng);
-        } catch (PageBlockedException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new PageCaptureException("Failed to capture page from URL: " + url, e);
-        } finally {
             if (page != null) {
                 page.close();
             }
-            browser.close();
+        } catch (RuntimeException ignored) {
+            // closing the browser below disposes of the page anyway
+        }
+        try {
+            if (browser != null) {
+                browser.close();
+            }
+        } catch (RuntimeException ignored) {
+            // browser already gone
         }
     }
 

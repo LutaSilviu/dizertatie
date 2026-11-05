@@ -36,4 +36,20 @@ class OpenApiDocsTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/json"));
     }
+
+    @Test
+    void apiDocs_declareApiKeyHeaderScheme_appliedGlobally_exceptHealth() throws Exception {
+        mockMvc.perform(get("/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.components.securitySchemes.ApiKey.type").value("apiKey"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.components.securitySchemes.ApiKey.in").value("header"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.components.securitySchemes.ApiKey.name").value("X-API-Key"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.security[0].ApiKey").isArray())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.paths['/health'].get.security").isEmpty());
+    }
 }

@@ -29,6 +29,7 @@ public class MetricsService {
 
     static final List<String> METHODS = List.of(AXE, AI, COMBINED);
 
+    /** Maximum FP examples and FN examples kept per method. */
     static final int MAX_EXAMPLES = 10;
 
     private final BenchmarkPageRepository benchmarkPageRepository;
@@ -52,8 +53,10 @@ public class MetricsService {
             catCounters.put(m, new LinkedHashMap<>());
         }
 
-        List<FpFnExample> fpExamples = new ArrayList<>();
-        List<FpFnExample> fnExamples = new ArrayList<>();
+        // Every candidate example; a diverse sample is drawn at the end (see sampleExamples).
+        List<FpFnExample> fpCandidates = new ArrayList<>();
+        List<FpFnExample> fnCandidates = new ArrayList<>();
+        Set<String> methodsWithResults = new LinkedHashSet<>();
 
         for (BenchmarkPage page : pages) {
             String url = page.getUrl();
@@ -65,14 +68,15 @@ public class MetricsService {
                 labelKeys.add(labelKey(l.getWcagCriterion(), l.getElementSelector()));
             }
 
-            // Load findings for each method
-            Map<String, List<Finding>> methodFindings = new LinkedHashMap<>();
-            methodFindings.put(AXE,      loadFindings(page.getAxeScanId()));
-            methodFindings.put(AI,       loadFindings(page.getAiScanId()));
-            methodFindings.put(COMBINED, loadFindings(page.getCombinedScanId()));
-
             for (String method : METHODS) {
-                List<Finding> findings = methodFindings.get(method);
+                // A method that failed on this page has no scan: it neither found nor missed
+                // anything there, so the page is left out of that method's counts.
+                Long scanId = scanIdFor(page, method);
+                if (scanId == null) {
+                    continue;
+                }
+                methodsWithResults.add(method);
+                List<Finding> findings = findingRepository.findByScanId(scanId);
 
                 Set<String> findingKeys = new HashSet<>();
                 for (Finding f : findings) {
@@ -92,10 +96,8 @@ public class MetricsService {
                     } else {
                         overall[1]++; // FP
                         catArr[1]++;
-                        if (fpExamples.size() < MAX_EXAMPLES) {
-                            fpExamples.add(new FpFnExample(method, url,
-                                    f.getWcagCriterion(), f.getElementSelector(), f.getDescription()));
-                        }
+                        fpCandidates.add(new FpFnExample(method, url,
+                                f.getWcagCriterion(), f.getElementSelector(), f.getDescription()));
                     }
                 }
 
@@ -108,18 +110,19 @@ public class MetricsService {
                         int[] catArr  = catCounters.get(method).computeIfAbsent(category, k -> new int[3]);
                         overall[2]++; // FN
                         catArr[2]++;
-                        if (fnExamples.size() < MAX_EXAMPLES) {
-                            fnExamples.add(new FpFnExample(method, url,
-                                    l.getWcagCriterion(), l.getElementSelector(), null));
-                        }
+                        // The label's rationale says what the method missed.
+                        fnCandidates.add(new FpFnExample(method, url,
+                                l.getWcagCriterion(), l.getElementSelector(), l.getRationale()));
                     }
                 }
             }
         }
 
         // Build overall method metrics
+        // Methods with no successful page (e.g. AI without a valid OpenAI key) are omitted.
         Map<String, MethodMetrics> methods = new LinkedHashMap<>();
         for (String m : METHODS) {
+            if (!methodsWithResults.contains(m)) continue;
             int[] c = overallCounters.get(m);
             methods.put(m, MethodMetrics.of(c[0], c[1], c[2]));
         }
@@ -133,6 +136,7 @@ public class MetricsService {
         for (String cat : allCategories) {
             Map<String, MethodMetrics> catMap = new LinkedHashMap<>();
             for (String m : METHODS) {
+                if (!methodsWithResults.contains(m)) continue;
                 int[] c = catCounters.get(m).getOrDefault(cat, new int[3]);
                 catMap.put(m, MethodMetrics.of(c[0], c[1], c[2]));
             }
@@ -145,16 +149,16 @@ public class MetricsService {
         Double avgAxe      = benchmarkPageRepository.avgLatencyAxeMsByRunId(run.getId());
         Double avgAi       = benchmarkPageRepository.avgLatencyAiMsByRunId(run.getId());
         Double avgCombined = benchmarkPageRepository.avgLatencyCombinedMsByRunId(run.getId());
-        if (avgAxe      != null) avgLatency.put("AXE",      avgAxe);
-        if (avgAi       != null) avgLatency.put("AI",       avgAi);
-        if (avgCombined != null) avgLatency.put("COMBINED", avgCombined);
+        if (avgAxe      != null && methodsWithResults.contains(AXE))      avgLatency.put("AXE",      avgAxe);
+        if (avgAi       != null && methodsWithResults.contains(AI))       avgLatency.put("AI",       avgAi);
+        if (avgCombined != null && methodsWithResults.contains(COMBINED)) avgLatency.put("COMBINED", avgCombined);
 
         return new BenchmarkMetrics(
                 run.getId(),
                 methods,
                 byCategory,
-                fpExamples,
-                fnExamples,
+                sampleExamples(fpCandidates),
+                sampleExamples(fnCandidates),
                 avgCost,
                 avgLatency
         );
@@ -164,9 +168,43 @@ public class MetricsService {
     // helpers
     // -------------------------------------------------------------------------
 
-    private List<Finding> loadFindings(Long scanId) {
-        if (scanId == null) return Collections.emptyList();
-        return findingRepository.findByScanId(scanId);
+    /**
+     * Picks at most {@link #MAX_EXAMPLES} examples per method, round-robin across distinct WCAG
+     * criteria (in first-seen order), so one frequent issue (e.g. dozens of 2.5.8 target-size
+     * findings) cannot fill every slot and different kinds of errors show up.
+     */
+    static List<FpFnExample> sampleExamples(List<FpFnExample> candidates) {
+        List<FpFnExample> sample = new ArrayList<>();
+        for (String method : METHODS) {
+            Map<String, Deque<FpFnExample>> byCriterion = new LinkedHashMap<>();
+            for (FpFnExample e : candidates) {
+                if (method.equals(e.method())) {
+                    String criterion = e.wcagCriterion() == null ? "" : e.wcagCriterion();
+                    byCriterion.computeIfAbsent(criterion, k -> new ArrayDeque<>()).add(e);
+                }
+            }
+            int taken = 0;
+            while (taken < MAX_EXAMPLES && !byCriterion.isEmpty()) {
+                Iterator<Deque<FpFnExample>> groups = byCriterion.values().iterator();
+                while (groups.hasNext() && taken < MAX_EXAMPLES) {
+                    Deque<FpFnExample> group = groups.next();
+                    sample.add(group.poll());
+                    taken++;
+                    if (group.isEmpty()) {
+                        groups.remove();
+                    }
+                }
+            }
+        }
+        return sample;
+    }
+
+    private static Long scanIdFor(BenchmarkPage page, String method) {
+        return switch (method) {
+            case AXE -> page.getAxeScanId();
+            case AI -> page.getAiScanId();
+            default -> page.getCombinedScanId();
+        };
     }
 
     static String labelKey(String wcagCriterion, String elementSelector) {

@@ -137,4 +137,38 @@ class AxeResultParserTest {
         assertThat(findings).hasSize(1);
         assertThat(findings.get(0).getWcagCriterion()).isEqualTo("aria-required-attr");
     }
+
+    @Test
+    void levelComesFromRegistry_forWcag22Criteria() throws Exception {
+        usv.dizertatie.wcag.WcagCriterionRegistry registry = new usv.dizertatie.wcag.WcagCriterionRegistry();
+        registry.load();
+        AxeResultParser withRegistry = new AxeResultParser(new ObjectMapper(), registry);
+        String json = """
+                [{"id":"target-size","impact":"serious","description":"Touch targets",
+                  "tags":["cat.sensory-and-visual-cues","wcag22aa","wcag258"],
+                  "nodes":[{"target":["#btn"]}]}]
+                """;
+
+        Finding f = withRegistry.parse(json).get(0);
+
+        assertThat(f.getWcagCriterion()).isEqualTo("2.5.8");
+        assertThat(f.getWcagLevel()).isEqualTo("AA");
+    }
+
+    @Test
+    void levelFallsBackToWcag21And22Tags_withoutRegistry() {
+        String json = """
+                [{"id":"x","impact":"serious","description":"d","tags":["wcag21aa","wcag1412"],
+                  "nodes":[{"target":["p"]}]}]
+                """;
+        assertThat(parser.parse(json).get(0).getWcagLevel()).isEqualTo("AA");
+    }
+
+    @Test
+    void twoDigitCriterionNumbersAreFormattedCorrectly() {
+        assertThat(AxeResultParser.formatWcagCriterion("1410")).isEqualTo("1.4.10");
+        assertThat(AxeResultParser.formatWcagCriterion("2411")).isEqualTo("2.4.11");
+        assertThat(AxeResultParser.formatWcagCriterion("143")).isEqualTo("1.4.3");
+        assertThat(AxeResultParser.formatWcagCriterion("21")).isEqualTo("2.1");
+    }
 }
