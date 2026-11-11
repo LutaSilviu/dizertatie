@@ -31,6 +31,9 @@ public class BenchmarkRunnerService {
     /**
      * Creates a new {@link BenchmarkRun}, persists one {@link BenchmarkPage} per URL,
      * then hands the run to {@link BenchmarkRunExecutor#execute}, which runs asynchronously.
+     * <p>
+     * Not {@code @Transactional} on purpose: each save commits before the hand-off, so the async
+     * run can read the run and its pages. Inside a transaction it could start before the commit.
      *
      * @param name          human-readable name for this run
      * @param urls          explicit list of URLs (ignored when {@code useBuiltinSet=true})

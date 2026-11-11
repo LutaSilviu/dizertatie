@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
@@ -31,7 +32,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * Checks that {@link BenchmarkRunnerService#createRun} goes through the Spring proxy, so the scans
- * run on the async executor instead of the request thread.
+ * run on the async executor instead of the request thread. Uses a slim context rather than
+ * {@code @SpringBootTest} so a real {@code @Async} proxy is built without Playwright or a database.
  */
 @SpringJUnitConfig(BenchmarkRunnerServiceAsyncTest.Config.class)
 class BenchmarkRunnerServiceAsyncTest {
@@ -95,23 +97,23 @@ class BenchmarkRunnerServiceAsyncTest {
         when(benchmarkPageRepository.save(any(BenchmarkPage.class))).thenAnswer(inv -> inv.getArgument(0));
 
         CountDownLatch scanStarted = new CountDownLatch(1);
-        Thread[] scanThread = new Thread[1];
+        AtomicReference<Thread> scanThread = new AtomicReference<>();
         when(scanService.runAxeScan(anyString())).thenAnswer(inv -> {
-            scanThread[0] = Thread.currentThread();
+            scanThread.set(Thread.currentThread());
             scanStarted.countDown();
             releaseScan.await(10, TimeUnit.SECONDS);
             throw new IllegalStateException("scan released by test");
         });
 
         // A synchronous run would block here until releaseScan opens (10 s), failing the timeout.
-        Thread[] callerThread = new Thread[1];
+        AtomicReference<Thread> callerThread = new AtomicReference<>();
         BenchmarkRun result = assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
-            callerThread[0] = Thread.currentThread();
+            callerThread.set(Thread.currentThread());
             return service.createRun("Async Run", List.of("https://x.test/"), false, AiModel.GPT4O_MINI);
         });
 
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(scanStarted.await(5, TimeUnit.SECONDS)).isTrue();
-        assertThat(scanThread[0]).isNotSameAs(callerThread[0]);
+        assertThat(scanThread.get()).isNotSameAs(callerThread.get());
     }
 }
