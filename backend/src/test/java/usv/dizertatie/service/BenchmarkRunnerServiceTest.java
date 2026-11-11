@@ -32,7 +32,7 @@ class BenchmarkRunnerServiceTest {
     private GroundTruthLabelRepository groundTruthLabelRepository;
 
     @Mock
-    private ScanService scanService;
+    private BenchmarkRunExecutor benchmarkRunExecutor;
 
     private BenchmarkRunnerService service;
 
@@ -42,7 +42,7 @@ class BenchmarkRunnerServiceTest {
                 benchmarkRunRepository,
                 benchmarkPageRepository,
                 groundTruthLabelRepository,
-                scanService
+                benchmarkRunExecutor
         );
     }
 
@@ -68,6 +68,7 @@ class BenchmarkRunnerServiceTest {
         verify(benchmarkRunRepository, atLeastOnce()).save(any(BenchmarkRun.class));
         verify(benchmarkPageRepository, times(2)).save(any(BenchmarkPage.class));
         verifyNoInteractions(groundTruthLabelRepository);
+        verify(benchmarkRunExecutor).execute(1L, urls, AiModel.GPT4O_MINI);
     }
 
     @Test
@@ -97,5 +98,6 @@ class BenchmarkRunnerServiceTest {
         verify(groundTruthLabelRepository).findAll();
         // one page per distinct URL
         verify(benchmarkPageRepository, times(2)).save(any(BenchmarkPage.class));
+        verify(benchmarkRunExecutor).execute(2L, List.of("https://a.com", "https://b.com"), AiModel.GPT4O_MINI);
     }
 }
