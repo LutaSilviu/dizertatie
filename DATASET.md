@@ -15,7 +15,7 @@ The W3C Web Accessibility Initiative (WAI) publishes a set of intentionally inac
 | http://localhost:8080/fixtures/wai-bad/before/home.html | BAD – inaccessible home page | 1.1.1, 1.4.3, 1.3.1, 4.1.2, 2.4.1 |
 | http://localhost:8080/fixtures/wai-bad/after/home.html | BAD – accessible home page (negative example) | 1.1.1 (none – alt text present) |
 | http://localhost:8080/fixtures/wai-bad/before/survey.html | BAD – inaccessible survey/form page | 2.4.6, 1.3.1, 4.1.2, 1.4.3 |
-| http://localhost:8080/fixtures/wai-bad/before/ticket.html | BAD – inaccessible ticket-booking page | 2.4.6, 1.1.1, 1.3.1, 2.1.1 |
+| http://localhost:8080/fixtures/wai-bad/before/tickets.html | BAD – inaccessible ticket-booking page | 2.4.6, 1.1.1, 1.3.1, 2.1.1 |
 | http://localhost:8080/fixtures/wai-bad/before/news.html | BAD – inaccessible news page | 1.3.3, 1.4.3, 4.1.2, 2.4.1, 1.1.1 |
 
 **License:** [W3C Document License](https://www.w3.org/Consortium/Legal/2015/doc-license)

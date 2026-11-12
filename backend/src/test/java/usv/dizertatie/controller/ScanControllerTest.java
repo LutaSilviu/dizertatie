@@ -57,6 +57,16 @@ class ScanControllerTest {
     private CsvSerializer csvSerializer;
 
     @Test
+    void getScans_exposesPaginationForMultiplePages() throws Exception {
+        when(scanService.findAll(1, 20)).thenReturn(new ScanHistoryResponse(List.of(), 1, 20, 45));
+
+        mockMvc.perform(get("/scans?page=1&size=20").header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.number").value(1))
+                .andExpect(jsonPath("$.totalPages").value(3));
+    }
+
+    @Test
     void getScans_withValidApiKey_returns200AndJsonArray() throws Exception {
         ScanSummaryResponse item = new ScanSummaryResponse(
                 1L, "https://example.com", "AXE", null,

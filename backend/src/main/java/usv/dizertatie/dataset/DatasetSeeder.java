@@ -120,25 +120,25 @@ public class DatasetSeeder implements ApplicationRunner {
                         "1.4.3", "AA", "serious",
                         "label.hint-text"),
 
-                // ── W3C BAD before/ticket.html ───────────────────────────────────────────
+                // ── W3C BAD before/tickets.html ──────────────────────────────────────────
 
                 // 2.4.6 – Unlabelled form controls on ticket page
-                label(BAD_DEMO + "before/ticket.html",
+                label(BAD_DEMO + "before/tickets.html",
                         "2.4.6", "AA", "serious",
                         "input[type='text']:not([aria-label])"),
 
                 // 1.1.1 – Decorative images without empty alt
-                label(BAD_DEMO + "before/ticket.html",
+                label(BAD_DEMO + "before/tickets.html",
                         "1.1.1", "A", "moderate",
                         "img.decorative:not([alt=''])"),
 
                 // 1.3.1 – Table used for layout without role="presentation"
-                label(BAD_DEMO + "before/ticket.html",
+                label(BAD_DEMO + "before/tickets.html",
                         "1.3.1", "A", "serious",
                         "table:not([role='presentation'])"),
 
                 // 2.1.1 – Keyboard: click handler on non-interactive element
-                label(BAD_DEMO + "before/ticket.html",
+                label(BAD_DEMO + "before/tickets.html",
                         "2.1.1", "A", "critical",
                         "div.clickable[onclick]"),
 
