@@ -57,6 +57,18 @@ class ScanControllerTest {
     private CsvSerializer csvSerializer;
 
     @Test
+    void getScan_reportsWhetherAiResponseCameFromCache() throws Exception {
+        Scan scan = Scan.builder().id(7L).url("https://example.com").method("AI")
+                .timestamp(LocalDateTime.now()).cacheHit(true).build();
+        when(scanService.findById(7L)).thenReturn(scan);
+        when(scanService.findingsForScan(scan)).thenReturn(List.of());
+
+        mockMvc.perform(get("/scans/7").header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cacheHit").value(true));
+    }
+
+    @Test
     void getScans_exposesPaginationForMultiplePages() throws Exception {
         when(scanService.findAll(1, 20)).thenReturn(new ScanHistoryResponse(List.of(), 1, 20, 45));
 

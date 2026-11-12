@@ -40,9 +40,13 @@ public class AiAnalysisService {
      * @throws AiAnalysisException if the API call fails
      */
     public String analyze(PageCapture capture, AiModel model) {
+        return analyzeWithCacheStatus(capture, model).response();
+    }
+
+    public AiResponseCache.CachedResponse analyzeWithCacheStatus(PageCapture capture, AiModel model) {
         String promptVersion = promptLoader.getVersion();
         String cacheKey = capture.html() + "|" + screenshotDigest(capture.screenshotPng());
-        return cache.getOrCompute(cacheKey, model, promptVersion, () -> {
+        return cache.getOrComputeWithStatus(cacheKey, model, promptVersion, () -> {
             try {
                 String systemPrompt = promptLoader.getPrompt();
                 ChatClient chatClient = openAiModelSelector.getClient(model);

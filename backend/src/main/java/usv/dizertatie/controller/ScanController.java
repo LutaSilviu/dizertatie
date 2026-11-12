@@ -180,7 +180,7 @@ public class ScanController {
         if (status != ScanStatus.COMPLETED) {
             return new ScanResponse(
                     scan.getId(), scan.getUrl(), scan.getMethod(), timestamp,
-                    status, scan.getFailureReason(), null, null, null, List.of(), List.of());
+                    status, scan.getFailureReason(), scan.getCacheHit(), null, null, null, List.of(), List.of());
         }
 
         return new ScanResponse(
@@ -190,6 +190,7 @@ public class ScanController {
                 timestamp,
                 status,
                 null,
+                scan.getCacheHit(),
                 affectedElementsByImpact,
                 distinctRuleCount,
                 wcagCriteria,

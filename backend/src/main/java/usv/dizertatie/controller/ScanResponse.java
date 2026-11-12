@@ -16,6 +16,7 @@ public record ScanResponse(
         Instant timestamp,
         ScanStatus status,
         String failureReason,
+        Boolean cacheHit,
         Map<String, Long> affectedElementsByImpact,
         Integer distinctRuleCount,
         List<String> wcagCriteriaWithFindings,

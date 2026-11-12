@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /**
@@ -19,6 +20,8 @@ public class AiResponseCache {
 
     private final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
 
+    public record CachedResponse(String response, boolean cacheHit) {}
+
     /**
      * Returns a cached response if one exists for the given inputs, otherwise invokes
      * {@code apiCall}, stores the result, and returns it.
@@ -30,8 +33,17 @@ public class AiResponseCache {
      * @return the raw JSON response string (from cache or fresh)
      */
     public String getOrCompute(String html, AiModel model, String promptVersion, Supplier<String> apiCall) {
+        return getOrComputeWithStatus(html, model, promptVersion, apiCall).response();
+    }
+
+    public CachedResponse getOrComputeWithStatus(String html, AiModel model, String promptVersion, Supplier<String> apiCall) {
         String key = computeKey(html, model.getModelId(), promptVersion);
-        return cache.computeIfAbsent(key, k -> apiCall.get());
+        AtomicBoolean computed = new AtomicBoolean();
+        String response = cache.computeIfAbsent(key, k -> {
+            computed.set(true);
+            return apiCall.get();
+        });
+        return new CachedResponse(response, !computed.get());
     }
 
     /**

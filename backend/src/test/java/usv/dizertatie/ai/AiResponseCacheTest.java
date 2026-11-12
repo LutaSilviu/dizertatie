@@ -32,12 +32,14 @@ class AiResponseCacheTest {
         when(apiCall.get()).thenReturn(expectedResponse);
 
         // Act
-        String first = cache.getOrCompute(html, AiModel.GPT4O, promptVersion, apiCall);
-        String second = cache.getOrCompute(html, AiModel.GPT4O, promptVersion, apiCall);
+        var first = cache.getOrComputeWithStatus(html, AiModel.GPT4O, promptVersion, apiCall);
+        var second = cache.getOrComputeWithStatus(html, AiModel.GPT4O, promptVersion, apiCall);
 
         // Assert
-        assertThat(first).isEqualTo(expectedResponse);
-        assertThat(second).isEqualTo(expectedResponse);
+        assertThat(first.response()).isEqualTo(expectedResponse);
+        assertThat(first.cacheHit()).isFalse();
+        assertThat(second.response()).isEqualTo(expectedResponse);
+        assertThat(second.cacheHit()).isTrue();
         verify(apiCall, times(1)).get();
         assertThat(cache.size()).isEqualTo(1);
     }
@@ -95,6 +97,15 @@ class AiResponseCacheTest {
         verify(apiCallGpt4o, times(1)).get();
         verify(apiCallGpt4oMini, times(1)).get();
         assertThat(cache.size()).isEqualTo(2);
+    }
+
+    @Test
+    void changedPromptVersionIsACacheMiss() {
+        cache.getOrComputeWithStatus("html", AiModel.GPT4O, "v1", () -> "first");
+        var changed = cache.getOrComputeWithStatus("html", AiModel.GPT4O, "v2", () -> "second");
+
+        assertThat(changed.cacheHit()).isFalse();
+        assertThat(changed.response()).isEqualTo("second");
     }
 
     @Test

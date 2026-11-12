@@ -16,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import usv.dizertatie.ai.AiAnalysisService;
 import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.ai.AiResponseParser;
+import usv.dizertatie.ai.AiResponseCache;
 import usv.dizertatie.ai.PromptLoader;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
@@ -62,21 +63,35 @@ class ScanServiceTest {
     @Test
     void runAiScan_passesCapturedScreenshotToAiAnalysis() {
         when(pageCaptureService.capture(URL)).thenReturn(new PageCapture(HTML, SCREENSHOT));
-        when(aiAnalysisService.analyze(any(PageCapture.class), any(AiModel.class)))
-                .thenReturn("{\"findings\":[]}");
+        when(aiAnalysisService.analyzeWithCacheStatus(any(PageCapture.class), any(AiModel.class)))
+                .thenReturn(new AiResponseCache.CachedResponse("{\"findings\":[]}", false));
         when(aiResponseParser.parse(anyString())).thenReturn(List.of());
         when(promptLoader.getVersion()).thenReturn("v1");
         when(scanRepository.save(any(Scan.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        scanService.runAiScan(URL, AiModel.GPT4O);
+        Scan scan = scanService.runAiScan(URL, AiModel.GPT4O);
+
+        assertThat(scan.getCacheHit()).isFalse();
 
         ArgumentCaptor<PageCapture> captor = ArgumentCaptor.forClass(PageCapture.class);
-        org.mockito.Mockito.verify(aiAnalysisService).analyze(captor.capture(), any(AiModel.class));
+        org.mockito.Mockito.verify(aiAnalysisService).analyzeWithCacheStatus(captor.capture(), any(AiModel.class));
 
         assertThat(captor.getValue().html()).isEqualTo(HTML);
         assertThat(captor.getValue().screenshotPng())
                 .as("the screenshot captured from the page must reach the AI analysis")
                 .isEqualTo(SCREENSHOT);
+    }
+
+    @Test
+    void runAiScan_savesCacheHitOnScan() {
+        when(pageCaptureService.capture(URL)).thenReturn(new PageCapture(HTML, SCREENSHOT));
+        when(aiAnalysisService.analyzeWithCacheStatus(any(PageCapture.class), any(AiModel.class)))
+                .thenReturn(new AiResponseCache.CachedResponse("{\"findings\":[]}", true));
+        when(aiResponseParser.parse(anyString())).thenReturn(List.of());
+        when(promptLoader.getVersion()).thenReturn("v1");
+        when(scanRepository.save(any(Scan.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(scanService.runAiScan(URL, AiModel.GPT4O).getCacheHit()).isTrue();
     }
 
     @Test

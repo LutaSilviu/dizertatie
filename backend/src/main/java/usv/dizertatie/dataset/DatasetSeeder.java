@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import usv.dizertatie.domain.GroundTruthLabel;
 import usv.dizertatie.repository.GroundTruthLabelRepository;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -50,7 +51,7 @@ public class DatasetSeeder implements ApplicationRunner {
     }
 
     private List<GroundTruthLabel> buildSeeds() {
-        return List.of(
+        List<GroundTruthLabel> labels = new ArrayList<>(List.of(
 
                 // ── W3C BAD before/home.html ─────────────────────────────────────────────
 
@@ -168,7 +169,18 @@ public class DatasetSeeder implements ApplicationRunner {
                 label(BAD_DEMO + "before/news.html",
                         "1.1.1", "A", "critical",
                         "img.thumbnail:not([alt])")
-        );
+        ));
+
+        String[] criteria = {"1.1.1", "1.4.3", "1.3.1", "1.3.1", "4.1.2"};
+        String[] levels = {"A", "AA", "A", "A", "A"};
+        for (int i = 1; i <= 15; i++) {
+            int defect = (i - 1) % criteria.length;
+            GroundTruthLabel synthetic = label("http://localhost:8080/fixtures/synthetic/case-%02d.html".formatted(i),
+                    criteria[defect], levels[defect], "serious", "#defect");
+            synthetic.setAnnotator("project-synthetic");
+            labels.add(synthetic);
+        }
+        return labels;
     }
 
     private GroundTruthLabel label(String url, String criterion, String level,

@@ -33,6 +33,14 @@ element selector) are original work added by this project.
 
 ## WCAG Criteria Covered
 
+The application also includes 15 project-authored synthetic pages at
+`/fixtures/synthetic/case-01.html` through `case-15.html`. Each page has one
+intentionally injected defect at `#defect`; the examples cycle through missing
+image alternative text (1.1.1), low contrast (1.4.3), an unlabelled field
+(1.3.1), an unmarked heading (1.3.1), and an invalid ARIA role (4.1.2).
+These pages are original project material, not W3C BAD pages.
+No separate license has been specified for these project-authored fixtures.
+
 | Criterion | Level | Description |
 |-----------|-------|-------------|
 | 1.1.1 | A | Non-text Content — images must have alt text |
@@ -52,7 +60,7 @@ element selector) are original work added by this project.
 |-------|-------|
 | `annotator` | `w3c-bad-demo` |
 | `confidence` | `0.9` |
-| Total labels seeded | 22 |
+| Total labels seeded | 37 |
 
 Labels are inserted idempotently: `DatasetSeeder` checks for an existing row with the
 same `url`, `wcagCriterion`, and `elementSelector` before inserting.

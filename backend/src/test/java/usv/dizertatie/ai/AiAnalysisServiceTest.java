@@ -78,11 +78,11 @@ class AiAnalysisServiceTest {
             return mockSpec;
         });
 
-        when(aiResponseCache.getOrCompute(anyString(), any(AiModel.class), anyString(), any()))
+        when(aiResponseCache.getOrComputeWithStatus(anyString(), any(AiModel.class), anyString(), any()))
                 .thenAnswer(invocation -> {
                     @SuppressWarnings("unchecked")
                     Supplier<String> supplier = invocation.getArgument(3);
-                    return supplier.get();
+                    return new AiResponseCache.CachedResponse(supplier.get(), false);
                 });
 
         return captured;

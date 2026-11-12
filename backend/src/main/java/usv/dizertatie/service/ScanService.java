@@ -166,7 +166,8 @@ public class ScanService {
     public Scan runAiScan(String url, AiModel model) {
         try {
             PageCapture capture = pageCaptureService.capture(url);
-            String rawJson = aiAnalysisService.analyze(capture, model);
+            var aiResult = aiAnalysisService.analyzeWithCacheStatus(capture, model);
+            String rawJson = aiResult.response();
             List<Finding> findings = aiResponseParser.parse(rawJson);
 
             Scan scan = Scan.builder()
@@ -175,6 +176,7 @@ public class ScanService {
                     .status(ScanStatus.COMPLETED)
                     .modelId(model.getModelId())
                     .promptVersion(promptLoader.getVersion())
+                    .cacheHit(aiResult.cacheHit())
                     .rawAiResponse(rawJson)
                     .timestamp(LocalDateTime.now())
                     .build();
@@ -231,7 +233,8 @@ public class ScanService {
             }
 
             List<Finding> axeFindings = axeResultParser.parse(violationsJson);
-            String rawJson = aiAnalysisService.analyze(new PageCapture(html, screenshotPng), model);
+            var aiResult = aiAnalysisService.analyzeWithCacheStatus(new PageCapture(html, screenshotPng), model);
+            String rawJson = aiResult.response();
             List<Finding> aiFindings = aiResponseParser.parse(rawJson);
             List<Finding> mergedFindings = findingMergeService.merge(axeFindings, aiFindings);
 
@@ -244,6 +247,7 @@ public class ScanService {
                     .rawAxeIncomplete(axeResultParser.incompleteAsJson(violationsJson))
                     .modelId(model.getModelId())
                     .promptVersion(promptLoader.getVersion())
+                    .cacheHit(aiResult.cacheHit())
                     .rawAiResponse(rawJson)
                     .timestamp(LocalDateTime.now())
                     .build();
