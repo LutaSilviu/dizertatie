@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CsvSerializerTest {
 
     private static final String HEADER =
-            "scanId,url,method,timestamp,sourceMethod,wcagCriterion,wcagLevel,severity,elementSelector,description";
+            "scanId,url,method,timestamp,sourceMethod,wcagCriterion,wcagLevel,severity,elementSelector,description,suggestion";
 
     private CsvSerializer serializer;
     private Scan scan;
@@ -44,6 +44,7 @@ class CsvSerializerTest {
                 .severity("serious")
                 .elementSelector("img")
                 .description("Image missing alt text")
+                .suggestion("Add alternative text")
                 .build();
 
         String result = serializer.serialize(scan, List.of(finding));
@@ -52,7 +53,7 @@ class CsvSerializerTest {
         assertThat(lines).hasSize(2);
         assertThat(lines[0]).isEqualTo(HEADER);
         assertThat(lines[1]).isEqualTo(
-                "1,https://example.com,AI,2024-01-15T10:30,axe,1.1.1,A,serious,img,Image missing alt text");
+                "1,https://example.com,AI,2024-01-15T10:30,axe,1.1.1,A,serious,img,Image missing alt text,Add alternative text");
     }
 
     @Test
@@ -70,7 +71,7 @@ class CsvSerializerTest {
         String[] lines = result.split("\n", -1);
 
         assertThat(lines).hasSize(2);
-        assertThat(lines[1]).endsWith("\"Missing alt, aria-label, or title\"");
+        assertThat(lines[1]).endsWith("\"Missing alt, aria-label, or title\",");
     }
 
     @Test
@@ -88,6 +89,6 @@ class CsvSerializerTest {
         String[] lines = result.split("\n", -1);
 
         assertThat(lines).hasSize(2);
-        assertThat(lines[1]).endsWith("\"Element has attribute \"\"role\"\" set incorrectly\"");
+        assertThat(lines[1]).endsWith("\"Element has attribute \"\"role\"\" set incorrectly\",");
     }
 }

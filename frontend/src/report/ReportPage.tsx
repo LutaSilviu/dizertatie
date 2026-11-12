@@ -11,6 +11,7 @@ interface Finding {
   sourceMethod: string
   elementSelector: string
   description: string
+  suggestion: string | null
 }
 
 interface ManualReviewElement {
@@ -60,6 +61,7 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
             <th scope="col">Source</th>
             <th scope="col">Element Selector</th>
             <th scope="col">Description</th>
+            <th scope="col">Suggested fix</th>
           </tr>
         </thead>
         <tbody>
@@ -82,6 +84,7 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
                 <code className={styles.selector}>{f.elementSelector}</code>
               </td>
               <td>{f.description}</td>
+              <td>{f.suggestion || '—'}</td>
             </tr>
           ))}
         </tbody>

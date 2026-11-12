@@ -250,6 +250,7 @@ class ScanControllerTest {
                 .severity("serious")
                 .elementSelector("img")
                 .description("Missing alt text")
+                .suggestion("Add alternative text")
                 .build();
 
         when(scanService.findById(1L)).thenReturn(scan);
@@ -262,7 +263,8 @@ class ScanControllerTest {
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.url").value("https://example.com"))
                 .andExpect(jsonPath("$.findings").isArray())
-                .andExpect(jsonPath("$.findings[0].wcagCriterion").value("1.1.1"));
+                .andExpect(jsonPath("$.findings[0].wcagCriterion").value("1.1.1"))
+                .andExpect(jsonPath("$.findings[0].suggestion").value("Add alternative text"));
     }
 
     @Test

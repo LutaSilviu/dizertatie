@@ -7,6 +7,7 @@ public record FindingResponse(
         String ruleId,
         String severity,
         String elementSelector,
-        String description
+        String description,
+        String suggestion
 ) {
 }

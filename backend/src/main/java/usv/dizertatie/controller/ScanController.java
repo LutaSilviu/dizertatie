@@ -148,7 +148,8 @@ public class ScanController {
                         f.getRuleId(),
                         f.getSeverity(),
                         f.getElementSelector(),
-                        f.getDescription()
+                        f.getDescription(),
+                        f.getSuggestion()
                 ))
                 .toList();
 

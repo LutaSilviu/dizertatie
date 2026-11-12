@@ -176,7 +176,7 @@ public class DatasetSeeder implements ApplicationRunner {
         for (int i = 1; i <= 15; i++) {
             int defect = (i - 1) % criteria.length;
             GroundTruthLabel synthetic = label("http://localhost:8080/fixtures/synthetic/case-%02d.html".formatted(i),
-                    criteria[defect], levels[defect], "serious", "#defect");
+                    i == 14 ? "2.1.1" : criteria[defect], levels[defect], "serious", "#defect");
             synthetic.setAnnotator("project-synthetic");
             labels.add(synthetic);
         }

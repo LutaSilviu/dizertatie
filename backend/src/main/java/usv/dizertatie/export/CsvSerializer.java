@@ -15,7 +15,7 @@ import java.util.List;
 public class CsvSerializer {
 
     private static final String HEADER =
-            "scanId,url,method,timestamp,sourceMethod,wcagCriterion,wcagLevel,severity,elementSelector,description";
+            "scanId,url,method,timestamp,sourceMethod,wcagCriterion,wcagLevel,severity,elementSelector,description,suggestion";
 
     private final CsvFieldEscaper csvFieldEscaper;
 
@@ -42,6 +42,8 @@ public class CsvSerializer {
             sb.append(csvFieldEscaper.escape(f.getElementSelector()));
             sb.append(',');
             sb.append(csvFieldEscaper.escape(f.getDescription()));
+            sb.append(',');
+            sb.append(csvFieldEscaper.escape(f.getSuggestion()));
         }
         return sb.toString();
     }

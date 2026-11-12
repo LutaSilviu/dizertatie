@@ -38,6 +38,7 @@ The application also includes 15 project-authored synthetic pages at
 intentionally injected defect at `#defect`; the examples cycle through missing
 image alternative text (1.1.1), low contrast (1.4.3), an unlabelled field
 (1.3.1), an unmarked heading (1.3.1), and an invalid ARIA role (4.1.2).
+Case 14 instead contains a pointer-only control (2.1.1).
 These pages are original project material, not W3C BAD pages.
 No separate license has been specified for these project-authored fixtures.
 
