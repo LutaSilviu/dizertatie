@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { apiFetch } from '../settings/apiClient'
+import { apiFetch, downloadFile, formatDateTime, networkErrorMessage, readApiError } from '../settings/apiClient'
+import { normaliseSeverity, severityRank } from './severity'
 import styles from './ReportPage.module.css'
 
+// Mirrors backend FindingResponse; AI findings have no rule id and may have null fields.
 interface Finding {
-  wcagCriterion: string
-  wcagLevel: string
-  ruleId: string
-  severity: string
-  sourceMethod: string
-  elementSelector: string
-  description: string
+  wcagCriterion: string | null
+  wcagLevel: string | null
+  ruleId: string | null
+  severity: string | null
+  sourceMethod: string | null
+  elementSelector: string | null
+  description: string | null
 }
 
 interface ManualReviewElement {
@@ -28,25 +30,41 @@ interface ManualReviewItem {
   elements: ManualReviewElement[]
 }
 
+// Mirrors backend ScanResponse.
 interface ScanReport {
-  id: string
+  id: number
   url: string
   method: string
-  model?: string
-  timestamp: string
+  model?: string | null
+  axeVersion?: string | null
+  browserVersion?: string | null
+  timestamp: string | null
   status: 'COMPLETED' | 'TIMED_OUT' | 'RATE_LIMITED' | 'BLOCKED' | 'FAILED'
   failureReason: string | null
   affectedElementsByImpact: Record<string, number> | null
+  findingsBySource: Record<string, number> | null
   distinctRuleCount: number | null
   wcagCriteriaWithFindings: string[] | null
   findings: Finding[] | null
   manualReviewItems: ManualReviewItem[] | null
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  AXE: 'axe-core only',
+  AI: 'AI only',
+  COMBINED: 'axe-core and AI',
+}
+
+function impactOrder([a]: [string, number], [b]: [string, number]): number {
+  return severityRank(a) - severityRank(b)
+}
+
 function FindingsTable({ findings }: { findings: Finding[] }) {
   if (findings.length === 0) {
     return <p className={styles.emptyFindings}>No automated findings were reported for this completed scan.</p>
   }
+
+  const sorted = [...findings].sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
 
   return (
     <div className={styles.tableWrapper}>
@@ -63,27 +81,39 @@ function FindingsTable({ findings }: { findings: Finding[] }) {
           </tr>
         </thead>
         <tbody>
-          {findings.map((f, i) => (
-            <tr key={i}>
-              <td>{f.wcagCriterion}</td>
-              <td>
-                <span className={[styles.levelBadge, styles[`level${f.wcagLevel}`]].join(' ')}>
-                  {f.wcagLevel}
-                </span>
-              </td>
-              <td>{f.ruleId || '—'}</td>
-              <td>
-                <span className={[styles.severityLabel, styles[`sev${f.severity}`]].join(' ')}>
-                  {f.severity}
-                </span>
-              </td>
-              <td>{f.sourceMethod}</td>
-              <td>
-                <code className={styles.selector}>{f.elementSelector}</code>
-              </td>
-              <td>{f.description}</td>
-            </tr>
-          ))}
+          {sorted.map((f, i) => {
+            const level = (f.wcagLevel ?? '').trim().toUpperCase()
+            const sev = normaliseSeverity(f.severity)
+            return (
+              <tr key={i}>
+                <td>{f.wcagCriterion || '—'}</td>
+                <td>
+                  {level ? (
+                    <span className={[styles.levelBadge, styles[`level${level}`] ?? ''].join(' ').trim()}>
+                      {level}
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td>{f.ruleId || '—'}</td>
+                <td>
+                  <span className={[styles.severityLabel, styles[`sev${sev}`] ?? ''].join(' ').trim()}>
+                    {f.severity || 'unknown'}
+                  </span>
+                </td>
+                <td>{f.sourceMethod || '—'}</td>
+                <td>
+                  {f.elementSelector ? (
+                    <code className={styles.selector}>{f.elementSelector}</code>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td>{f.description || '—'}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -129,51 +159,47 @@ function ReportPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!scanId) return
 
+    let cancelled = false
     setLoading(true)
     setError(null)
 
-    apiFetch(`/api/scans/${scanId}`)
+    apiFetch(`/api/scans/${encodeURIComponent(scanId)}`)
       .then(async (res) => {
         if (!res.ok) {
-          const text = await res.text()
-          throw new Error(`Failed to load scan: ${res.status} ${text}`)
+          const reason =
+            res.status === 404 ? `Scan #${scanId} does not exist.` : await readApiError(res)
+          throw new Error(`Failed to load scan: ${reason}`)
         }
         return res.json() as Promise<ScanReport>
       })
       .then((data) => {
-        setReport(data)
+        if (!cancelled) setReport(data)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Unknown error')
+        if (!cancelled) setError(networkErrorMessage(err))
       })
       .finally(() => {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       })
+
+    return () => {
+      cancelled = true
+    }
   }, [scanId])
 
   async function handleExportCsv() {
     if (!scanId) return
     setExporting(true)
+    setExportError(null)
     try {
-      const res = await apiFetch(`/api/scans/${scanId}/export.csv`)
-      if (!res.ok) {
-        throw new Error(`Export failed: ${res.status}`)
-      }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `scan-${scanId}.csv`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      await downloadFile(`/api/scans/${encodeURIComponent(scanId)}/export.csv`, `scan-${scanId}.csv`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Export failed')
+      setExportError(networkErrorMessage(err))
     } finally {
       setExporting(false)
     }
@@ -181,7 +207,7 @@ function ReportPage() {
 
   if (loading) {
     return (
-      <div className={styles.statusContainer} role="status" aria-live="polite">
+      <div className={`app-page ${styles.statusContainer}`} role="status" aria-live="polite">
         <div className={styles.spinner} aria-hidden="true" />
         <p>Loading scan report…</p>
       </div>
@@ -190,26 +216,33 @@ function ReportPage() {
 
   if (error) {
     return (
-      <div className={styles.statusContainer}>
+      <div className={`app-page ${styles.statusContainer}`}>
         <p className={styles.errorMsg} role="alert">{error}</p>
-        <Link to="/analyzer" className={styles.backLink}>← Back to Analyzer</Link>
+        <div className={styles.topLinks}>
+          <Link to="/analyzer" className={styles.backLink}>← Back to Analyzer</Link>
+          <Link to="/history" className={styles.backLink}>Scan history</Link>
+        </div>
       </div>
     )
   }
 
   if (!report) return null
 
-  const formattedDate = new Date(report.timestamp).toLocaleString()
   const completed = report.status === 'COMPLETED'
   const findings = report.findings ?? []
   const criteria = report.wcagCriteriaWithFindings ?? []
-  const impacts = report.affectedElementsByImpact ?? {}
+  const impacts = Object.entries(report.affectedElementsByImpact ?? {}).sort(impactOrder)
+  const sources = Object.entries(report.findingsBySource ?? {})
   const manualReviewItems = report.manualReviewItems ?? []
+  const method = (report.method ?? '').toUpperCase()
 
   return (
-    <div className={styles.page}>
+    <div className="app-page">
       <div className={styles.topBar}>
-        <Link to="/analyzer" className={styles.backLink}>← Back to Analyzer</Link>
+        <div className={styles.topLinks}>
+          <Link to="/analyzer" className={styles.backLink}>← New scan</Link>
+          <Link to="/history" className={styles.backLink}>Scan history</Link>
+        </div>
         {completed && (
           <button
             className={styles.exportBtn}
@@ -220,6 +253,11 @@ function ReportPage() {
           </button>
         )}
       </div>
+      {exportError && (
+        <p className={styles.errorMsg} role="alert" style={{ textAlign: 'left', marginBottom: '1rem' }}>
+          {exportError}
+        </p>
+      )}
 
       <h1 className={styles.pageTitle} title={report.url}>
         {report.url}
@@ -227,6 +265,10 @@ function ReportPage() {
 
       <section className={styles.metaSection} aria-label="Scan metadata">
         <dl className={styles.metaList}>
+          <div className={styles.metaItem}>
+            <dt>Scan</dt>
+            <dd>#{report.id}</dd>
+          </div>
           <div className={styles.metaItem}>
             <dt>Method</dt>
             <dd>{report.method}</dd>
@@ -237,9 +279,21 @@ function ReportPage() {
               <dd>{report.model}</dd>
             </div>
           )}
+          {report.axeVersion && (
+            <div className={styles.metaItem}>
+              <dt>axe-core</dt>
+              <dd>{report.axeVersion}</dd>
+            </div>
+          )}
+          {report.browserVersion && (
+            <div className={styles.metaItem}>
+              <dt>Browser</dt>
+              <dd>{report.browserVersion}</dd>
+            </div>
+          )}
           <div className={styles.metaItem}>
             <dt>Scanned</dt>
-            <dd>{formattedDate}</dd>
+            <dd>{formatDateTime(report.timestamp)}</dd>
           </div>
         </dl>
       </section>
@@ -256,21 +310,37 @@ function ReportPage() {
         <h2 id="evidence-heading" className={styles.sectionTitle}>Scan evidence</h2>
         <div className={styles.evidenceGrid}>
           <div className={styles.evidenceCard}>
-            <h3>Affected elements by axe impact</h3>
-            {Object.keys(impacts).length === 0 ? (
-              <p>0 affected elements</p>
+            <h3>Reported elements by impact</h3>
+            {impacts.length === 0 ? (
+              <p>0 reported elements</p>
             ) : (
               <ul>
-                {Object.entries(impacts).map(([impact, count]) => (
+                {impacts.map(([impact, count]) => (
                   <li key={impact}><span>{impact}</span><strong>{count}</strong></li>
                 ))}
               </ul>
             )}
+            <p className={styles.reviewNote}>Counts every finding listed below.</p>
           </div>
-          <div className={styles.evidenceCard}>
-            <h3>Distinct rules with findings</h3>
-            <p className={styles.evidenceCount}>{report.distinctRuleCount}</p>
-          </div>
+          {sources.length > 0 && (
+            <div className={styles.evidenceCard}>
+              <h3>Reported elements by source</h3>
+              <ul>
+                {sources.map(([source, count]) => (
+                  <li key={source}><span>{SOURCE_LABELS[source] ?? source}</span><strong>{count}</strong></li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {method !== 'AI' && (
+            <div className={styles.evidenceCard}>
+              <h3>Distinct axe-core rules with findings</h3>
+              <p className={styles.evidenceCount}>{report.distinctRuleCount ?? 0}</p>
+              {method === 'COMBINED' && (
+                <p className={styles.reviewNote}>AI findings are not tied to a rule.</p>
+              )}
+            </div>
+          )}
           <div className={styles.evidenceCard}>
             <h3>WCAG criteria with findings</h3>
             {criteria.length === 0 ? (
@@ -287,7 +357,7 @@ function ReportPage() {
 
       <section className={styles.section} aria-labelledby="findings-heading">
         <h2 id="findings-heading" className={styles.sectionTitle}>
-          Affected elements ({findings.length})
+          Reported elements ({findings.length})
         </h2>
         <FindingsTable findings={findings} />
       </section>

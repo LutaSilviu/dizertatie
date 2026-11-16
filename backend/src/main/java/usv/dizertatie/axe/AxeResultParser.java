@@ -2,9 +2,10 @@ package usv.dizertatie.axe;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import usv.dizertatie.domain.Finding;
+import usv.dizertatie.wcag.WcagCriterionRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,12 +19,26 @@ import java.util.regex.Pattern;
  * One {@link Finding} is produced per node (or one per violation if nodes is empty).
  */
 @Component
-@RequiredArgsConstructor
 public class AxeResultParser {
 
     private static final Pattern WCAG_CRITERION_TAG = Pattern.compile("^wcag(\\d)(\\d)(\\d+)$");
 
+    /** Conformance-level tags: wcag2a, wcag2aa, wcag2aaa, wcag21a, wcag21aa, wcag22aa, ... */
+    private static final Pattern WCAG_LEVEL_TAG = Pattern.compile("^wcag2\\d?(a{1,3})$");
+
     private final ObjectMapper objectMapper;
+    private final WcagCriterionRegistry registry;
+
+    @Autowired
+    public AxeResultParser(ObjectMapper objectMapper, WcagCriterionRegistry registry) {
+        this.objectMapper = objectMapper;
+        this.registry = registry;
+    }
+
+    /** Without a registry the level is read from axe's tags only. */
+    public AxeResultParser(ObjectMapper objectMapper) {
+        this(objectMapper, null);
+    }
 
     /**
      * Parses the Axe violations JSON array string into a list of findings.
@@ -103,7 +118,7 @@ public class AxeResultParser {
         JsonNode nodes = violation.path("nodes");
 
         String wcagCriterion = extractWcagCriterion(tags);
-        String wcagLevel = extractWcagLevel(tags);
+        String wcagLevel = resolveWcagLevel(wcagCriterion, tags);
 
         List<Finding> findings = new ArrayList<>();
 
@@ -135,16 +150,30 @@ public class AxeResultParser {
         return null;
     }
 
-    private String extractWcagLevel(JsonNode tags) {
-        if (tags.isArray()) {
-            for (JsonNode tag : tags) {
-                String tagText = tag.asText("");
-                if ("wcag2aaa".equals(tagText)) return "AAA";
-                if ("wcag2aa".equals(tagText))  return "AA";
-                if ("wcag2a".equals(tagText))   return "A";
+    /**
+     * The criterion's level per the WCAG 2.2 registry (e.g. 2.5.8 Target Size is AA). Falls back
+     * to axe's level tags, and to "A" when there is neither.
+     */
+    private String resolveWcagLevel(String criterion, JsonNode tags) {
+        if (registry != null && criterion != null) {
+            var level = registry.getLevel(criterion);
+            if (level.isPresent()) {
+                return level.get().name();
             }
         }
-        return "A";
+        String fromTags = null;
+        if (tags.isArray()) {
+            for (JsonNode tag : tags) {
+                var m = WCAG_LEVEL_TAG.matcher(tag.asText(""));
+                if (m.matches()) {
+                    String level = m.group(1).toUpperCase(java.util.Locale.ROOT);
+                    if (fromTags == null || level.length() > fromTags.length()) {
+                        fromTags = level;
+                    }
+                }
+            }
+        }
+        return fromTags != null ? fromTags : "A";
     }
 
     private String extractSelector(JsonNode node) {

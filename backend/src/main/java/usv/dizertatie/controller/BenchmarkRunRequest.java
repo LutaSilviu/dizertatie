@@ -9,12 +9,15 @@ import java.util.List;
  * @param urls          explicit list of URLs; ignored when {@code useBuiltinSet=true}
  * @param useBuiltinSet when {@code true}, URLs are loaded from seeded ground-truth labels
  * @param model         the AI model ID to use (defaults to "gpt-6-luna")
+ * @param methods       scan methods to run, any of AXE, AI, COMBINED (case-insensitive);
+ *                      {@code null} means all three, an empty list is rejected
  */
 public record BenchmarkRunRequest(
         String name,
         List<String> urls,
         boolean useBuiltinSet,
-        String model
+        String model,
+        List<String> methods
 ) {
     public BenchmarkRunRequest {
         if (name == null || name.isBlank()) {

@@ -10,9 +10,11 @@ import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.domain.BenchmarkRun;
 import usv.dizertatie.export.BenchmarkCsvExporter;
 import usv.dizertatie.repository.BenchmarkPageRepository;
+import usv.dizertatie.service.BenchmarkMethods;
 import usv.dizertatie.service.BenchmarkRunnerService;
 import usv.dizertatie.service.MetricsService;
 
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -48,13 +50,28 @@ public class BenchmarkController {
         try {
             model = AiModel.fromId(request.model());
         } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    e.getMessage() + " (expected gpt-6-luna, gpt-4o or gpt-4o-mini)");
+        }
+        List<String> methods;
+        try {
+            methods = BenchmarkMethods.parse(request.methods());
+        } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+        List<String> urls = request.useBuiltinSet()
+                ? List.of()
+                : request.urls().stream().map(TargetUrls::normalize).toList();
+        if (!request.useBuiltinSet() && urls.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Provide at least one URL or set useBuiltinSet=true");
         }
         BenchmarkRun run = benchmarkRunnerService.createRun(
                 request.name(),
-                request.urls(),
+                urls,
                 request.useBuiltinSet(),
-                model
+                model,
+                methods
         );
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(Map.of("runId", run.getId()));
     }
@@ -78,6 +95,12 @@ public class BenchmarkController {
      * @param id run identifier
      * @return status response; latency/cost fields are {@code null} unless status=COMPLETE
      */
+    /** Same body as {@code /{id}/status}; lets clients fetch a run by its resource URL. */
+    @GetMapping("/{id}")
+    public ResponseEntity<BenchmarkRunStatusResponse> getRun(@PathVariable Long id) {
+        return getRunStatus(id);
+    }
+
     @GetMapping("/{id}/status")
     public ResponseEntity<BenchmarkRunStatusResponse> getRunStatus(@PathVariable Long id) {
         BenchmarkRun run = benchmarkRunnerService.findById(id)
@@ -127,6 +150,11 @@ public class BenchmarkController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "BenchmarkRun not found: " + id));
 
+        if ("FAILED".equals(run.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Run failed, so no metrics are available"
+                            + (run.getErrorSummary() != null ? ": " + run.getErrorSummary() : ""));
+        }
         if (!"COMPLETE".equals(run.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Run is still in progress");
         }
@@ -154,11 +182,13 @@ public class BenchmarkController {
                 run.getStatus(),
                 run.getPagesDone(),
                 run.getTotalPages(),
-                run.getCreatedAt(),
+                run.getCreatedAt() != null ? run.getCreatedAt().toInstant(ZoneOffset.UTC) : null,
                 avgAxe,
                 avgAi,
                 avgCombined,
-                avgCost
+                avgCost,
+                BenchmarkMethods.split(run.getMethods()),
+                run.getErrorSummary()
         );
     }
 }

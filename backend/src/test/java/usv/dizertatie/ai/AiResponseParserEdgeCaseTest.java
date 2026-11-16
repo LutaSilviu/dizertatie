@@ -194,13 +194,11 @@ class AiResponseParserEdgeCaseTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void malformedFixtureReturnsEmptyListWithoutException() throws IOException {
+    void malformedFixtureIsRejected_soItCannotPassAsACleanPage() throws IOException {
         String json = loadFixture("fixtures/ai-response-malformed.json");
 
-        // Must not throw; must return an empty list
-        List<Finding> findings = parser.parse(json);
-
-        assertThat(findings).isEmpty();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> parser.parse(json))
+                .isInstanceOf(AiResponseFormatException.class);
     }
 
     // -----------------------------------------------------------------------

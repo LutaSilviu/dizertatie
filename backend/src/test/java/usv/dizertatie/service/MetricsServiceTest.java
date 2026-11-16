@@ -29,6 +29,9 @@ class MetricsServiceTest {
     @Mock
     private GroundTruthLabelRepository groundTruthLabelRepository;
 
+    @org.mockito.Mock
+    private usv.dizertatie.repository.ScanRepository scanRepository;
+
     private MetricsService service;
 
     // ---- common fixtures ---------------------------------------------------
@@ -47,7 +50,8 @@ class MetricsServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MetricsService(benchmarkPageRepository, findingRepository, groundTruthLabelRepository);
+        service = new MetricsService(benchmarkPageRepository, findingRepository, groundTruthLabelRepository,
+                scanRepository);
     }
 
     // ---- helpers -----------------------------------------------------------
@@ -206,20 +210,132 @@ class MetricsServiceTest {
     }
 
     /**
-     * No pages in the run → all metrics should be zero with no exceptions.
+     * No pages in the run: no exceptions, and no method has results, so none is reported
+     * (methods without a successful page are omitted).
      */
     @Test
-    void compute_noPages_returnsZeroMetrics() {
+    void compute_noPages_reportsNoMethods() {
         when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of());
 
         BenchmarkMetrics metrics = service.compute(run);
 
-        for (String method : MetricsService.METHODS) {
-            MethodMetrics m = metrics.methods().get(method);
-            assertThat(m.precision()).isEqualTo(0.0, offset(1e-9));
-            assertThat(m.recall()).isEqualTo(0.0, offset(1e-9));
-            assertThat(m.f1()).isEqualTo(0.0, offset(1e-9));
-        }
+        assertThat(metrics.methods()).isEmpty();
         assertThat(metrics.byCategory()).isEmpty();
+    }
+
+    /**
+     * AI failed on every page (no scan id): AI is omitted from the metrics, and the missing AI
+     * scan is not counted as false negatives for AXE or anyone else.
+     */
+    @Test
+    void compute_methodWithoutResults_isOmitted_andFailedPagesAreNotCountedAsMisses() {
+        BenchmarkPage axeOnly = BenchmarkPage.builder()
+                .id(11L).run(run).url(URL).status("DONE").axeScanId(1L).build();
+        GroundTruthLabel gt = label("1.1.1", "#img");
+        Finding f = finding(1L, "1.1.1", "#img");
+
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(axeOnly));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of(gt));
+        when(findingRepository.findByScanId(1L)).thenReturn(List.of(f));
+        when(benchmarkPageRepository.avgLatencyAiMsByRunId(run.getId())).thenReturn(1234.0);
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        assertThat(metrics.methods()).containsOnlyKeys("AXE");
+        assertThat(metrics.methods().get("AXE").recall()).isEqualTo(1.0, offset(1e-9));
+        assertThat(metrics.byCategory().get("Perceivable")).containsOnlyKeys("AXE");
+        assertThat(metrics.falseNegativeExamples()).isEmpty();
+        assertThat(metrics.avgLatencyMs()).doesNotContainKey("AI");
+    }
+
+    @Test
+    void compute_fpExamplesAreCappedPerMethod() {
+        List<Finding> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            many.add(finding(1L, "2.1.1", "#fp" + i));
+        }
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(page));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of());
+        when(findingRepository.findByScanId(anyLong())).thenReturn(many);
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        for (String method : MetricsService.METHODS) {
+            assertThat(metrics.falsePositiveExamples().stream().filter(e -> e.method().equals(method)).count())
+                    .as(method).isEqualTo(MetricsService.MAX_EXAMPLES);
+        }
+    }
+
+    @Test
+    void compute_examplesAreSampledRoundRobinAcrossCriteria() {
+        List<Finding> findings = new java.util.ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            findings.add(finding(1L, "2.5.8", "#target" + i));   // one very frequent issue
+        }
+        findings.add(finding(1L, "1.4.3", "#contrast"));
+        findings.add(finding(1L, "4.1.2", "#name"));
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(page));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of());
+        when(findingRepository.findByScanId(anyLong())).thenReturn(findings);
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        List<FpFnExample> axe = metrics.falsePositiveExamples().stream()
+                .filter(e -> e.method().equals("AXE")).toList();
+        assertThat(axe).hasSize(MetricsService.MAX_EXAMPLES);
+        assertThat(axe).extracting(FpFnExample::wcagCriterion).startsWith("2.5.8", "1.4.3", "4.1.2")
+                .contains("1.4.3", "4.1.2");
+    }
+
+    @Test
+    void compute_fnExamplesCarryTheLabelRationale() {
+        GroundTruthLabel gt = label("1.1.1", "#logo");
+        gt.setRationale("logo image has no text alternative");
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(page));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of(gt));
+        when(findingRepository.findByScanId(anyLong())).thenReturn(List.of());
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        assertThat(metrics.falseNegativeExamples()).isNotEmpty()
+                .allMatch(e -> "logo image has no text alternative".equals(e.description()));
+    }
+
+    /** #34: two rules flagging the same element under the same criterion are one prediction. */
+    @Test
+    void compute_duplicateFindingsOnOneLabel_countAsOneTruePositive() {
+        BenchmarkPage axeOnly = BenchmarkPage.builder().id(11L).run(run).url(URL).status("DONE")
+                .axeScanId(5L).build();
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(axeOnly));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of(
+                label("4.1.2", "#btn"), label("1.1.1", "img")));
+        when(findingRepository.findByScanId(5L)).thenReturn(List.of(
+                Finding.builder().sourceMethod("AXE").ruleId("aria-allowed-attr")
+                        .wcagCriterion("4.1.2").elementSelector("#btn").build(),
+                Finding.builder().sourceMethod("AXE").ruleId("aria-prohibited-attr")
+                        .wcagCriterion("4.1.2").elementSelector("#btn").build()));
+
+        MethodMetrics axe = service.compute(run).methods().get("AXE");
+
+        assertThat(axe.recall()).isEqualTo(0.5, offset(1e-9));
+        assertThat(axe.precision()).isEqualTo(1.0, offset(1e-9));
+    }
+
+    /** #33: a scan that did not complete has no evidence and is not scored as "missed everything". */
+    @Test
+    void compute_failedScan_isLeftOutInsteadOfCountingEveryLabelAsFalseNegative() {
+        BenchmarkPage blocked = BenchmarkPage.builder().id(12L).run(run).url(URL).status("FAILED")
+                .axeScanId(6L).build();
+        when(benchmarkPageRepository.findByRunId(run.getId())).thenReturn(List.of(blocked));
+        when(groundTruthLabelRepository.findByUrl(URL)).thenReturn(List.of(label("1.1.1", "img")));
+        when(scanRepository.findById(6L)).thenReturn(java.util.Optional.of(
+                Scan.builder().id(6L).url(URL).method("AXE")
+                        .status(usv.dizertatie.domain.ScanStatus.BLOCKED).build()));
+
+        BenchmarkMetrics metrics = service.compute(run);
+
+        assertThat(metrics.methods()).doesNotContainKey("AXE");
+        assertThat(metrics.falseNegativeExamples()).isEmpty();
+        org.mockito.Mockito.verify(findingRepository, org.mockito.Mockito.never()).findByScanId(6L);
     }
 }

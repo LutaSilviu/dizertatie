@@ -1,0 +1,52 @@
+/* Global base styles. The app uses a light theme only: several pages use inline
+   light backgrounds, so following the OS dark mode made text unreadable. */
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.5;
+  color: #1a202c;
+  background-color: #fff;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: #fff;
+  color: #1a202c;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Used by inline-styled spinners (CSS-module keyframes are renamed, so this must be global). */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Shared page container: every page uses the same width and alignment. */
+.app-page {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.app-page > h1:first-child,
+.app-page > :first-child h1 {
+  margin-top: 0;
+}

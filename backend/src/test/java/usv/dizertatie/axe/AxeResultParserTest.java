@@ -196,4 +196,45 @@ class AxeResultParserTest {
         assertThat(findings).extracting(Finding::getWcagLevel)
                 .containsExactly("AA", "AA");
     }
+
+    @Test
+    void levelComesFromRegistry_forWcag22Criteria() throws Exception {
+        usv.dizertatie.wcag.WcagCriterionRegistry registry = new usv.dizertatie.wcag.WcagCriterionRegistry();
+        registry.load();
+        AxeResultParser withRegistry = new AxeResultParser(new ObjectMapper(), registry);
+        String json = """
+                [{"id":"target-size","impact":"serious","description":"Touch targets",
+                  "tags":["cat.sensory-and-visual-cues","wcag22aa","wcag258"],
+                  "nodes":[{"target":["#btn"]}]}]
+                """;
+
+        Finding f = withRegistry.parse(json).get(0);
+
+        assertThat(f.getWcagCriterion()).isEqualTo("2.5.8");
+        assertThat(f.getWcagLevel()).isEqualTo("AA");
+    }
+
+    @Test
+    void levelFallsBackToWcag21And22Tags_withoutRegistry() {
+        String json = """
+                [{"id":"x","impact":"serious","description":"d","tags":["wcag21aa","wcag1412"],
+                  "nodes":[{"target":["p"]}]}]
+                """;
+        assertThat(parser.parse(json).get(0).getWcagLevel()).isEqualTo("AA");
+    }
+
+    @Test
+    void wcag21And22LevelTags_copiedFromBundledAxe_areNotLabelledLevelA() {
+        // Tag sets as they appear in the bundled axe-core 4.14.0 (issue #40).
+        String json = """
+                [{"id":"target-size","impact":"serious","tags":["cat.sensory-and-visual-cues","wcag22aa","wcag258"],"nodes":[{"target":["a"]}]},
+                 {"id":"autocomplete-valid","impact":"serious","tags":["cat.forms","wcag21aa","wcag135"],"nodes":[{"target":["input"]}]},
+                 {"id":"avoid-inline-spacing","impact":"serious","tags":["cat.structure","wcag21aa","wcag1412"],"nodes":[{"target":["p"]}]}]
+                """;
+
+        List<Finding> findings = parser.parse(json);
+
+        assertThat(findings).extracting(Finding::getWcagCriterion).containsExactly("2.5.8", "1.3.5", "1.4.12");
+        assertThat(findings).extracting(Finding::getWcagLevel).containsExactly("AA", "AA", "AA");
+    }
 }

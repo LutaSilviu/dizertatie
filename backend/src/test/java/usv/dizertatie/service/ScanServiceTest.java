@@ -15,7 +15,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import usv.dizertatie.ai.AiAnalysisService;
 import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.ai.AiKeyMissingException;
 import usv.dizertatie.ai.AiResponseParser;
+import usv.dizertatie.ai.AiStatusService;
 import usv.dizertatie.ai.PromptLoader;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
@@ -56,6 +58,7 @@ class ScanServiceTest {
     @Mock private AiResponseParser aiResponseParser;
     @Mock private PromptLoader promptLoader;
     @Mock private FindingMergeService findingMergeService;
+    @Mock private AiStatusService aiStatusService;
 
     @InjectMocks private ScanService scanService;
 
@@ -113,7 +116,7 @@ class ScanServiceTest {
                 .failureReason("Navigation timed out before the page became scannable.")
                 .timestamp(LocalDateTime.of(2026, 10, 27, 10, 30))
                 .build();
-        when(scanRepository.findAllByOrderByTimestampDesc(PageRequest.of(0, 20)))
+        when(scanRepository.findUserScansNewestFirst(PageRequest.of(0, 20)))
                 .thenReturn(new PageImpl<>(List.of(failed)));
 
         var history = scanService.findAll(0, 20);
@@ -124,5 +127,53 @@ class ScanServiceTest {
                 .isEqualTo("Navigation timed out before the page became scannable.");
         assertThat(history.content().getFirst().findingCount()).isZero();
         verify(findingRepository, never()).findByScan(failed);
+    }
+
+    @Test
+    void aiAndCombinedScans_withMissingKey_areRefusedBeforeAnyBrowserOrOpenAiWork() {
+        when(aiStatusService.isKeyMissing()).thenReturn(true);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> scanService.runAiScan(URL, AiModel.GPT4O))
+                .isInstanceOf(AiKeyMissingException.class)
+                .hasMessage(usv.dizertatie.error.FailureMessages.OPENAI_KEY_MISSING);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> scanService.runCombinedScan(URL, AiModel.GPT4O))
+                .isInstanceOf(AiKeyMissingException.class);
+
+        org.mockito.Mockito.verifyNoInteractions(pageCaptureService, browserType, aiAnalysisService, scanRepository);
+    }
+
+    /** #35: a reply the parser rejects is a failed scan, never a completed scan with no findings. */
+    @Test
+    void runAiScan_unparseableReply_isPersistedAsFailedWithoutFindings() {
+        ScanService service = new ScanService(browserType, axeService, axeResultParser, scanRepository,
+                findingRepository, pageCaptureService, aiAnalysisService,
+                new AiResponseParser(new com.fasterxml.jackson.databind.ObjectMapper()),
+                promptLoader, findingMergeService, aiStatusService);
+        when(pageCaptureService.capture(URL)).thenReturn(new PageCapture("<html></html>", new byte[0]));
+        when(scanRepository.save(any(Scan.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        for (String reply : List.of("I'm sorry, I can't help with that.", "{\"foo\":1}")) {
+            when(aiAnalysisService.analyze(any(), any())).thenReturn(reply);
+
+            Scan scan = service.runAiScan(URL, AiModel.GPT4O_MINI);
+
+            assertThat(scan.getStatus()).as(reply).isEqualTo(ScanStatus.FAILED);
+            assertThat(scan.getFailureReason()).as(reply).contains("AI model");
+            assertThat(scan.getModelId()).isEqualTo("gpt-4o-mini");
+        }
+        verify(findingRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void runAiScan_validReplyWithNoFindings_staysCompleted() {
+        ScanService service = new ScanService(browserType, axeService, axeResultParser, scanRepository,
+                findingRepository, pageCaptureService, aiAnalysisService,
+                new AiResponseParser(new com.fasterxml.jackson.databind.ObjectMapper()),
+                promptLoader, findingMergeService, aiStatusService);
+        when(pageCaptureService.capture(URL)).thenReturn(new PageCapture("<html></html>", new byte[0]));
+        when(scanRepository.save(any(Scan.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(aiAnalysisService.analyze(any(), any())).thenReturn("{\"findings\": []}");
+
+        assertThat(service.runAiScan(URL, AiModel.GPT4O_MINI).getStatus()).isEqualTo(ScanStatus.COMPLETED);
     }
 }

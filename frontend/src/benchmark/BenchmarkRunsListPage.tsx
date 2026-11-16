@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { apiFetch } from '../settings/apiClient'
+import { apiFetch, formatDateTime, networkErrorMessage, readApiError } from '../settings/apiClient'
+import { formatMethods } from './methods'
 
 interface BenchmarkRun {
   id: number
@@ -9,6 +10,10 @@ interface BenchmarkRun {
   pagesDone: number
   totalPages: number
   createdAt: string
+  /** Newer backends only. */
+  methods?: string[] | null
+  /** Human-readable failure summary (newer backends only). */
+  error?: string | null
 }
 
 function statusBadgeStyle(status: BenchmarkRun['status']): React.CSSProperties {
@@ -34,43 +39,47 @@ function statusBadgeStyle(status: BenchmarkRun['status']): React.CSSProperties {
   }
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString()
-  } catch {
-    return iso
-  }
-}
-
 function BenchmarkRunsListPage() {
   const [runs, setRuns] = useState<BenchmarkRun[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    apiFetch('/api/benchmark-runs')
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text()
-          throw new Error(text || `Fetch failed (${res.status})`)
-        }
-        return res.json() as Promise<BenchmarkRun[]>
-      })
-      .then((data) => {
-        setRuns(data)
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to load benchmark runs.')
-      })
-      .finally(() => {
-        setLoading(false)
-      })
-  }, [])
+  const hasActiveRuns = runs.some((r) => r.status === 'PENDING' || r.status === 'RUNNING')
 
+  useEffect(() => {
+    let cancelled = false
+    const load = () =>
+      apiFetch('/api/benchmark-runs')
+        .then(async (res) => {
+          if (!res.ok) {
+            throw new Error(`Failed to load benchmark runs: ${await readApiError(res)}`)
+          }
+          return res.json() as Promise<BenchmarkRun[]>
+        })
+        .then((data) => {
+          if (!cancelled) {
+            setRuns(data)
+            setError(null)
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) setError(networkErrorMessage(err))
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+
+    load()
+    // Keep progress of in-flight runs up to date.
+    const timer = hasActiveRuns ? setInterval(load, 5000) : null
+    return () => {
+      cancelled = true
+      if (timer) clearInterval(timer)
+    }
+  }, [hasActiveRuns])
+
+  // Width/alignment come from the global .app-page container.
   const containerStyle: React.CSSProperties = {
-    maxWidth: '900px',
-    margin: '0 auto',
-    padding: '1.5rem',
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
@@ -93,7 +102,7 @@ function BenchmarkRunsListPage() {
   }
 
   return (
-    <div style={containerStyle}>
+    <div className="app-page" style={containerStyle}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ margin: 0 }}>Benchmark Runs</h1>
         <Link
@@ -131,6 +140,7 @@ function BenchmarkRunsListPage() {
               <tr>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Status</th>
+                <th style={thStyle}>Methods</th>
                 <th style={thStyle}>Pages Done / Total</th>
                 <th style={thStyle}>Created At</th>
               </tr>
@@ -148,11 +158,30 @@ function BenchmarkRunsListPage() {
                   </td>
                   <td style={tdStyle}>
                     <span style={statusBadgeStyle(run.status)}>{run.status}</span>
+                    {run.error && (
+                      <span
+                        title={run.error}
+                        style={{
+                          display: 'block',
+                          marginTop: '0.25rem',
+                          maxWidth: '260px',
+                          fontSize: '0.75rem',
+                          color: run.status === 'FAILED' ? '#b91c1c' : '#92400e',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {run.status === 'FAILED' ? '' : 'Warning: '}
+                        {run.error}
+                      </span>
+                    )}
                   </td>
+                  <td style={tdStyle}>{formatMethods(run.methods)}</td>
                   <td style={tdStyle}>
                     {run.totalPages > 0 ? `${run.pagesDone} / ${run.totalPages}` : '—'}
                   </td>
-                  <td style={tdStyle}>{formatDate(run.createdAt)}</td>
+                  <td style={tdStyle}>{formatDateTime(run.createdAt)}</td>
                 </tr>
               ))}
             </tbody>

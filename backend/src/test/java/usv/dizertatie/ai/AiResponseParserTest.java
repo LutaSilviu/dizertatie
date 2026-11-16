@@ -159,17 +159,15 @@ class AiResponseParserTest {
     }
 
     @Test
-    void nullInputReturnsEmptyList() {
-        List<Finding> findings = parser.parse(null);
-
-        assertThat(findings).isEmpty();
+    void nullInputIsInvalid_notAnEmptyResult() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> parser.parse(null))
+                .isInstanceOf(AiResponseFormatException.class);
     }
 
     @Test
-    void blankInputReturnsEmptyList() {
-        List<Finding> findings = parser.parse("   ");
-
-        assertThat(findings).isEmpty();
+    void blankInputIsInvalid_notAnEmptyResult() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> parser.parse("   "))
+                .isInstanceOf(AiResponseFormatException.class);
     }
 
     // -----------------------------------------------------------------------
@@ -177,23 +175,25 @@ class AiResponseParserTest {
     // -----------------------------------------------------------------------
 
     @Test
-    void malformedJsonReturnsEmptyList() {
-        List<Finding> findings = parser.parse("{ this is not valid json }");
-
-        assertThat(findings).isEmpty();
+    void malformedJsonIsInvalid_notAnEmptyResult() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> parser.parse("{ this is not valid json }"))
+                .isInstanceOf(AiResponseFormatException.class)
+                .hasMessageContaining("not valid JSON");
     }
 
     @Test
-    void jsonWithoutFindingsKeyReturnsEmptyList() {
-        String json = """
-                {
-                  "results": []
-                }
-                """;
+    void proseRefusalIsInvalid_notAnEmptyResult() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> parser.parse("I'm sorry, I can't help with that."))
+                .isInstanceOf(AiResponseFormatException.class);
+    }
 
-        List<Finding> findings = parser.parse(json);
-
-        assertThat(findings).isEmpty();
+    @Test
+    void jsonWithoutFindingsArrayIsInvalid_notAnEmptyResult() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> parser.parse("{ \"results\": [] }"))
+                .isInstanceOf(AiResponseFormatException.class)
+                .hasMessageContaining("findings");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> parser.parse("{ \"findings\": \"none\" }"))
+                .isInstanceOf(AiResponseFormatException.class);
     }
 
     // -----------------------------------------------------------------------

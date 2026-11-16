@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.dataset.DatasetSeeder;
 import usv.dizertatie.domain.BenchmarkPage;
 import usv.dizertatie.domain.BenchmarkRun;
 import usv.dizertatie.domain.GroundTruthLabel;
@@ -68,7 +69,17 @@ class BenchmarkRunnerServiceTest {
         verify(benchmarkRunRepository, atLeastOnce()).save(any(BenchmarkRun.class));
         verify(benchmarkPageRepository, times(2)).save(any(BenchmarkPage.class));
         verifyNoInteractions(groundTruthLabelRepository);
-        verify(benchmarkRunExecutor).execute(1L, urls, AiModel.GPT4O_MINI);
+        // The scans run on the executor's background thread, not inside createRun.
+        verify(benchmarkRunExecutor).execute(1L, urls, AiModel.GPT4O_MINI, BenchmarkMethods.ALL);
+    }
+
+    @Test
+    void createRun_withNoUrlsAndNoBuiltinSet_isRejected() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.createRun("Empty", List.of(), false, AiModel.GPT4O_MINI))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("at least one URL");
+        verifyNoInteractions(benchmarkRunRepository, benchmarkRunExecutor);
     }
 
     @Test
@@ -96,8 +107,34 @@ class BenchmarkRunnerServiceTest {
         // 3 labels but only 2 distinct URLs
         assertThat(result.getTotalPages()).isEqualTo(2);
         verify(groundTruthLabelRepository).findAll();
-        // one page per distinct URL
-        verify(benchmarkPageRepository, times(2)).save(any(BenchmarkPage.class));
-        verify(benchmarkRunExecutor).execute(2L, List.of("https://a.com", "https://b.com"), AiModel.GPT4O_MINI);
+        // one page per distinct URL, plus the unlabelled negative-example page
+        verify(benchmarkPageRepository, times(2 + DatasetSeeder.NEGATIVE_EXAMPLE_URLS.size()))
+                .save(any(BenchmarkPage.class));
+    }
+
+    @Test
+    void builtinUrls_includeNegativeExamplePagesThatHaveNoLabels() {
+        GroundTruthLabel label = GroundTruthLabel.builder().url("https://a.com").build();
+        when(groundTruthLabelRepository.findAll()).thenReturn(List.of(label, label));
+
+        List<String> urls = service.builtinUrls();
+
+        assertThat(DatasetSeeder.NEGATIVE_EXAMPLE_URLS)
+                .containsExactly("http://localhost:8080/fixtures/wai-bad/after/home.html");
+        assertThat(urls).containsExactly("https://a.com", "http://localhost:8080/fixtures/wai-bad/after/home.html");
+    }
+
+    @Test
+    void createRun_withSelectedMethods_persistsAndPassesThemInCanonicalOrder() {
+        BenchmarkRun savedRun = BenchmarkRun.builder().id(3L).name("Axe only").status("PENDING")
+                .totalPages(1).pagesDone(0).build();
+        when(benchmarkRunRepository.save(any(BenchmarkRun.class))).thenReturn(savedRun);
+        when(benchmarkPageRepository.save(any(BenchmarkPage.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.createRun("Axe only", List.of("https://a.com"), false, AiModel.GPT4O_MINI, List.of("COMBINED", "AXE"));
+
+        verify(benchmarkRunRepository).save(org.mockito.ArgumentMatchers.argThat(
+                (BenchmarkRun r) -> "AXE,COMBINED".equals(r.getMethods())));
+        verify(benchmarkRunExecutor).execute(3L, List.of("https://a.com"), AiModel.GPT4O_MINI, List.of("AXE", "COMBINED"));
     }
 }

@@ -1,5 +1,6 @@
 package usv.dizertatie.dataset;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -8,14 +9,25 @@ import org.springframework.stereotype.Component;
 import usv.dizertatie.domain.GroundTruthLabel;
 import usv.dizertatie.repository.GroundTruthLabelRepository;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.List;
 
+/**
+ * Seeds the benchmark's ground-truth labels from {@code dataset/ground-truth-labels.json}.
+ *
+ * <p>Every label is one (page, WCAG success criterion, element) failure taken from the W3C BAD
+ * annotations or from manual inspection of the fixture markup; see DATASET.md for the protocol.
+ * Selectors are written in the form {@code axe.utils.getSelector} produces, because
+ * {@link usv.dizertatie.service.MetricsService} matches findings to labels by exact selector string.
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class DatasetSeeder implements ApplicationRunner {
 
-    private static final String ANNOTATOR = "w3c-bad-demo";
+    private static final String RESOURCE = "dataset/ground-truth-labels.json";
     private static final double CONFIDENCE = 0.9;
 
     /**
@@ -24,23 +36,40 @@ public class DatasetSeeder implements ApplicationRunner {
      */
     static final String BAD_DEMO = "http://localhost:8080/fixtures/wai-bad/";
 
+    /**
+     * Pages that have no expected violations. They carry no labels, so they must be listed here to be
+     * part of the built-in benchmark set; every finding reported on them counts as a false positive.
+     */
+    public static final List<String> NEGATIVE_EXAMPLE_URLS = loadDataset().pages().stream()
+            .filter(DatasetPage::negativeExample)
+            .map(p -> BAD_DEMO + p.page())
+            .toList();
+
     private final GroundTruthLabelRepository repository;
 
     @Override
     public void run(ApplicationArguments args) {
         List<GroundTruthLabel> seeds = buildSeeds();
         int inserted = 0;
+        int backfilled = 0;
         for (GroundTruthLabel label : seeds) {
             List<GroundTruthLabel> existing = repository.findByUrl(label.getUrl());
-            boolean alreadyExists = existing.stream()
-                    .anyMatch(e -> e.getWcagCriterion().equals(label.getWcagCriterion())
-                            && stringEquals(e.getElementSelector(), label.getElementSelector()));
-            if (!alreadyExists) {
+            var match = existing.stream()
+                    .filter(e -> stringEquals(e.getWcagCriterion(), label.getWcagCriterion())
+                            && stringEquals(e.getElementSelector(), label.getElementSelector()))
+                    .findFirst();
+            if (match.isEmpty()) {
                 repository.save(label);
                 inserted++;
+            } else if (label.getRationale() != null && !label.getRationale().equals(match.get().getRationale())) {
+                // Rows seeded before the rationale was stored (V8) get it backfilled.
+                match.get().setRationale(label.getRationale());
+                repository.save(match.get());
+                backfilled++;
             }
         }
-        log.info("DatasetSeeder: inserted {} new ground-truth labels ({} total seeds defined)", inserted, seeds.size());
+        log.info("DatasetSeeder: inserted {} new ground-truth labels, updated the rationale of {} ({} total seeds defined)",
+                inserted, backfilled, seeds.size());
     }
 
     private static boolean stringEquals(String a, String b) {
@@ -49,138 +78,37 @@ public class DatasetSeeder implements ApplicationRunner {
         return a.equals(b);
     }
 
-    private List<GroundTruthLabel> buildSeeds() {
-        return List.of(
-
-                // ── W3C BAD before/home.html ─────────────────────────────────────────────
-
-                // 1.1.1 – Missing alt text on images
-                label(BAD_DEMO + "before/home.html",
-                        "1.1.1", "A", "critical",
-                        "img[src='../img/w3c_home_nb.png']"),
-
-                label(BAD_DEMO + "before/home.html",
-                        "1.1.1", "A", "critical",
-                        "img[src='../img/logo.gif']"),
-
-                // 1.4.3 – Insufficient colour contrast
-                label(BAD_DEMO + "before/home.html",
-                        "1.4.3", "AA", "serious",
-                        "p.light-text"),
-
-                label(BAD_DEMO + "before/home.html",
-                        "1.4.3", "AA", "serious",
-                        "a.nav-link"),
-
-                // 1.3.1 – Heading structure / info and relationships
-                label(BAD_DEMO + "before/home.html",
-                        "1.3.1", "A", "serious",
-                        "font[size='+2']"),
-
-                // 4.1.2 – Broken ARIA roles / name, role, value
-                label(BAD_DEMO + "before/home.html",
-                        "4.1.2", "A", "serious",
-                        "div[onclick]"),
-
-                // 2.4.1 – Bypass blocks
-                label(BAD_DEMO + "before/home.html",
-                        "2.4.1", "A", "moderate",
-                        "body"),
-
-                // ── W3C BAD after/home.html (accessible version – negative examples) ───
-
-                // 1.1.1 – alt text present on accessible version (included for contrast)
-                label(BAD_DEMO + "after/home.html",
-                        "1.1.1", "A", "none",
-                        "img[alt]"),
-
-                // ── W3C BAD before/survey.html ───────────────────────────────────────────
-
-                // 2.4.6 – Labels for form fields
-                label(BAD_DEMO + "before/survey.html",
-                        "2.4.6", "AA", "serious",
-                        "input[type='text']:not([id])"),
-
-                label(BAD_DEMO + "before/survey.html",
-                        "2.4.6", "AA", "serious",
-                        "select:not([id])"),
-
-                // 1.3.1 – Missing fieldset/legend grouping
-                label(BAD_DEMO + "before/survey.html",
-                        "1.3.1", "A", "serious",
-                        "form > input[type='radio']"),
-
-                // 4.1.2 – Input with no accessible name
-                label(BAD_DEMO + "before/survey.html",
-                        "4.1.2", "A", "critical",
-                        "input[type='submit']:not([value])"),
-
-                // 1.4.3 – Low-contrast label text
-                label(BAD_DEMO + "before/survey.html",
-                        "1.4.3", "AA", "serious",
-                        "label.hint-text"),
-
-                // ── W3C BAD before/ticket.html ───────────────────────────────────────────
-
-                // 2.4.6 – Unlabelled form controls on ticket page
-                label(BAD_DEMO + "before/ticket.html",
-                        "2.4.6", "AA", "serious",
-                        "input[type='text']:not([aria-label])"),
-
-                // 1.1.1 – Decorative images without empty alt
-                label(BAD_DEMO + "before/ticket.html",
-                        "1.1.1", "A", "moderate",
-                        "img.decorative:not([alt=''])"),
-
-                // 1.3.1 – Table used for layout without role="presentation"
-                label(BAD_DEMO + "before/ticket.html",
-                        "1.3.1", "A", "serious",
-                        "table:not([role='presentation'])"),
-
-                // 2.1.1 – Keyboard: click handler on non-interactive element
-                label(BAD_DEMO + "before/ticket.html",
-                        "2.1.1", "A", "critical",
-                        "div.clickable[onclick]"),
-
-                // ── W3C BAD before/news.html ─────────────────────────────────────────────
-
-                // 1.3.3 – Sensory characteristics
-                label(BAD_DEMO + "before/news.html",
-                        "1.3.3", "A", "moderate",
-                        "p.instruction"),
-
-                // 1.4.3 – Low-contrast text in news cards
-                label(BAD_DEMO + "before/news.html",
-                        "1.4.3", "AA", "serious",
-                        "span.date"),
-
-                // 4.1.2 – Custom widget with no ARIA
-                label(BAD_DEMO + "before/news.html",
-                        "4.1.2", "A", "serious",
-                        "div.accordion:not([role])"),
-
-                // 2.4.1 – No skip-navigation link
-                label(BAD_DEMO + "before/news.html",
-                        "2.4.1", "A", "moderate",
-                        "body"),
-
-                // 1.1.1 – News thumbnail images missing alt
-                label(BAD_DEMO + "before/news.html",
-                        "1.1.1", "A", "critical",
-                        "img.thumbnail:not([alt])")
-        );
+    static List<GroundTruthLabel> buildSeeds() {
+        return loadDataset().pages().stream()
+                .flatMap(page -> page.labels().stream().map(l -> GroundTruthLabel.builder()
+                        .url(BAD_DEMO + page.page())
+                        .wcagCriterion(l.criterion())
+                        .wcagLevel(l.level())
+                        .severity(l.severity())
+                        .elementSelector(l.selector())
+                        .annotator(l.source())
+                        .confidence(CONFIDENCE)
+                        .rationale(l.rationale())
+                        .build()))
+                .toList();
     }
 
-    private GroundTruthLabel label(String url, String criterion, String level,
-                                    String severity, String selector) {
-        return GroundTruthLabel.builder()
-                .url(url)
-                .wcagCriterion(criterion)
-                .wcagLevel(level)
-                .severity(severity)
-                .elementSelector(selector)
-                .annotator(ANNOTATOR)
-                .confidence(CONFIDENCE)
-                .build();
+    static Dataset loadDataset() {
+        try (InputStream in = DatasetSeeder.class.getClassLoader().getResourceAsStream(RESOURCE)) {
+            if (in == null) {
+                throw new IllegalStateException("Missing classpath resource " + RESOURCE);
+            }
+            return new ObjectMapper().readValue(in, Dataset.class);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot read " + RESOURCE, e);
+        }
     }
+
+    record Dataset(List<DatasetPage> pages) {}
+
+    record DatasetPage(String page, boolean negativeExample, List<DatasetLabel> labels) {}
+
+    /** {@code source} is one of w3c-annotation, w3c-report, manual; it is stored as the label's annotator. */
+    record DatasetLabel(String criterion, String level, String severity, String selector,
+                        String source, String rationale) {}
 }

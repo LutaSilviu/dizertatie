@@ -29,4 +29,12 @@ public class BenchmarkRun {
     private int totalPages;
 
     private int pagesDone;
+
+    /** Comma-separated scan methods requested (subset of AXE,AI,COMBINED); null = all three (pre-V7 runs). */
+    @Column(length = 100)
+    private String methods;
+
+    /** Human-readable summary of failed scans; null when nothing failed. */
+    @Column(columnDefinition = "TEXT")
+    private String errorSummary;
 }

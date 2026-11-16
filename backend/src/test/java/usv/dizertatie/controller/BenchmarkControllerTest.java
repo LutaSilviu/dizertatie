@@ -74,7 +74,7 @@ class BenchmarkControllerTest {
                 .pagesDone(0)
                 .build();
 
-        when(benchmarkRunnerService.createRun(anyString(), anyList(), anyBoolean(), any(AiModel.class)))
+        when(benchmarkRunnerService.createRun(anyString(), anyList(), anyBoolean(), any(AiModel.class), anyList()))
                 .thenReturn(run);
 
         mockMvc.perform(post("/benchmark-runs")
@@ -345,5 +345,151 @@ class BenchmarkControllerTest {
     void getBenchmarkRunMetrics_withoutApiKey_returns401() throws Exception {
         mockMvc.perform(get("/benchmark-runs/1/metrics"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void postBenchmarkRuns_withoutUrlsAndWithoutBuiltinSet_returns400WithReadableError() throws Exception {
+        mockMvc.perform(post("/benchmark-runs")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "useBuiltinSet": false, "urls": [] }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(containsString("at least one URL")));
+    }
+
+    @Test
+    void postBenchmarkRuns_withInvalidUrl_returns400() throws Exception {
+        mockMvc.perform(post("/benchmark-runs")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "useBuiltinSet": false, "urls": ["ftp://example.com"] }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").isNotEmpty());
+    }
+
+    @Test
+    void postBenchmarkRuns_withUnsupportedModel_returns400WithReadableError() throws Exception {
+        mockMvc.perform(post("/benchmark-runs")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "useBuiltinSet": true, "model": "gpt-2" }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(containsString("gpt-2")));
+    }
+
+    @Test
+    void getBenchmarkRun_byId_returnsStatusWithUtcCreatedAt() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder().id(4L).name("R").status("COMPLETE")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 10, 0)).totalPages(1).pagesDone(1).build();
+        when(benchmarkRunnerService.findById(4L)).thenReturn(Optional.of(run));
+
+        mockMvc.perform(get("/benchmark-runs/4").header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(4))
+                .andExpect(jsonPath("$.createdAt").value("2026-10-15T10:00:00Z"));
+    }
+
+    @Test
+    void getBenchmarkRunStatus_withUnknownId_returnsJsonErrorMessage() throws Exception {
+        when(benchmarkRunnerService.findById(998L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/benchmark-runs/998/status").header("X-API-Key", API_KEY))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("BenchmarkRun not found: 998"));
+    }
+
+    @Test
+    void getBenchmarkRunMetrics_withFailedRun_returns409ExplainingFailure() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder().id(6L).name("R").status("FAILED")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 10, 0)).totalPages(1).pagesDone(1).build();
+        when(benchmarkRunnerService.findById(6L)).thenReturn(Optional.of(run));
+
+        mockMvc.perform(get("/benchmark-runs/6/metrics").header("X-API-Key", API_KEY))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value(containsString("failed")));
+    }
+
+    @Test
+    void postBenchmarkRuns_withMethods_passesNormalisedMethods() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder().id(8L).name("R").status("PENDING")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 10, 0)).totalPages(1).pagesDone(0).build();
+        when(benchmarkRunnerService.createRun(anyString(), anyList(), anyBoolean(), any(AiModel.class), anyList()))
+                .thenReturn(run);
+
+        mockMvc.perform(post("/benchmark-runs")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "useBuiltinSet": true, "methods": ["combined", "axe", "AXE"] }
+                                """))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.runId").value(8));
+
+        org.mockito.Mockito.verify(benchmarkRunnerService).createRun(anyString(), anyList(), anyBoolean(),
+                any(AiModel.class), org.mockito.ArgumentMatchers.eq(List.of("AXE", "COMBINED")));
+    }
+
+    @Test
+    void postBenchmarkRuns_withoutMethods_runsAllThree() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder().id(9L).name("R").status("PENDING")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 10, 0)).totalPages(1).pagesDone(0).build();
+        when(benchmarkRunnerService.createRun(anyString(), anyList(), anyBoolean(), any(AiModel.class), anyList()))
+                .thenReturn(run);
+
+        mockMvc.perform(post("/benchmark-runs")
+                        .header("X-API-Key", API_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "useBuiltinSet": true }
+                                """))
+                .andExpect(status().isAccepted());
+
+        org.mockito.Mockito.verify(benchmarkRunnerService).createRun(anyString(), anyList(), anyBoolean(),
+                any(AiModel.class), org.mockito.ArgumentMatchers.eq(List.of("AXE", "AI", "COMBINED")));
+    }
+
+    @Test
+    void postBenchmarkRuns_withUnknownOrEmptyMethods_returns400() throws Exception {
+        for (String methods : new String[]{"[\"LIGHTHOUSE\"]", "[]"}) {
+            mockMvc.perform(post("/benchmark-runs")
+                            .header("X-API-Key", API_KEY)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{ \"useBuiltinSet\": true, \"methods\": " + methods + " }"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").isNotEmpty());
+        }
+    }
+
+    @Test
+    void getBenchmarkRunStatus_includesMethodsAndError() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder().id(11L).name("R").status("COMPLETE")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 10, 0)).totalPages(2).pagesDone(2)
+                .methods("AXE,AI").errorSummary("AI failed on 2/2 pages: OpenAI rejected the API key").build();
+        when(benchmarkRunnerService.findById(11L)).thenReturn(Optional.of(run));
+
+        mockMvc.perform(get("/benchmark-runs/11/status").header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.methods[0]").value("AXE"))
+                .andExpect(jsonPath("$.methods[1]").value("AI"))
+                .andExpect(jsonPath("$.methods.length()").value(2))
+                .andExpect(jsonPath("$.error").value(containsString("AI failed on 2/2 pages")));
+    }
+
+    @Test
+    void getBenchmarkRunStatus_legacyRunWithoutMethods_reportsAllThreeAndNullError() throws Exception {
+        BenchmarkRun run = BenchmarkRun.builder().id(12L).name("R").status("RUNNING")
+                .createdAt(LocalDateTime.of(2026, 10, 15, 10, 0)).totalPages(2).pagesDone(1).build();
+        when(benchmarkRunnerService.findById(12L)).thenReturn(Optional.of(run));
+
+        mockMvc.perform(get("/benchmark-runs/12/status").header("X-API-Key", API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.methods.length()").value(3))
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.nullValue()));
     }
 }

@@ -14,8 +14,10 @@ import java.util.List;
 /**
  * Parses the raw JSON string returned by the AI model into a list of {@link Finding} entities.
  *
- * <p>Handles malformed JSON, null input, and AI responses wrapped in markdown code fences
- * ({@code ```json ... ```}) gracefully — returning an empty list rather than throwing.
+ * <p>Accepts replies wrapped in markdown code fences ({@code ```json ... ```}). A reply that is
+ * empty, not JSON, or has no {@code findings} array is <em>invalid</em> and raises
+ * {@link AiResponseFormatException}: it must never be read as "the model found nothing". Only a
+ * well-formed reply with {@code "findings": []} yields an empty list.
  */
 @Component
 @RequiredArgsConstructor
@@ -47,35 +49,36 @@ public class AiResponseParser {
      *
      * @param rawJson the raw JSON string from the AI model (may be null, empty, or markdown-fenced)
      * @return list of {@link Finding} entities with {@code sourceMethod} set to {@code "AI"};
-     *         returns an empty list if the input is null/empty or the JSON is malformed
+     *         empty only when the model explicitly reported no findings
+     * @throws AiResponseFormatException if the reply is empty, not JSON, or lacks a findings array
      */
     public List<Finding> parse(String rawJson) {
         if (rawJson == null || rawJson.isBlank()) {
-            log.warn("AI response JSON is null or empty — returning empty findings list");
-            return List.of();
+            throw new AiResponseFormatException("The AI model returned an empty reply.");
         }
 
         String json = stripMarkdownFences(rawJson.strip());
 
+        JsonNode root;
         try {
-            JsonNode root = objectMapper.readTree(json);
-            JsonNode findingsNode = root.path("findings");
+            root = objectMapper.readTree(json);
+        } catch (Exception e) {
+            log.warn("AI reply is not valid JSON: {}", e.getMessage());
+            throw new AiResponseFormatException("The AI model's reply was not valid JSON.", e);
+        }
+        JsonNode findingsNode = root == null ? null : root.path("findings");
+        if (findingsNode == null || !findingsNode.isArray()) {
+            log.warn("AI reply has no 'findings' array");
+            throw new AiResponseFormatException("The AI model's reply did not contain a findings list.");
+        }
 
-            if (!findingsNode.isArray()) {
-                log.warn("AI response JSON does not contain a 'findings' array — returning empty list");
-                return List.of();
-            }
-
-            List<Finding> findings = new ArrayList<>();
-            for (JsonNode node : findingsNode) {
+        List<Finding> findings = new ArrayList<>();
+        for (JsonNode node : findingsNode) {
+            if (node.isObject()) {
                 findings.add(mapToFinding(node));
             }
-            return findings;
-
-        } catch (Exception e) {
-            log.warn("Failed to parse AI response JSON: {} — returning empty findings list", e.getMessage());
-            return List.of();
         }
+        return findings;
     }
 
     /**

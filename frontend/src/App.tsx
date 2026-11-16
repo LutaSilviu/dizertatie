@@ -21,6 +21,7 @@ function App() {
           <Route path="/benchmark/:runId" element={<BenchmarkResultPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="*" element={<Navigate to="/analyzer" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

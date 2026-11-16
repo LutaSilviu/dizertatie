@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -35,6 +36,8 @@ public class ScanController {
     private final AxeResultParser axeResultParser;
     private final CsvSerializer csvSerializer;
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     @Operation(
             summary = "List all scans (paginated)",
             description = "Returns a paginated list of accessibility scan summaries ordered by most recent first."
@@ -50,6 +53,14 @@ public class ScanController {
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size (max results per page)", example = "20")
             @RequestParam(defaultValue = "20") int size) {
+        if (page < 0) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "page must be 0 or greater");
+        }
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "size must be between 1 and " + MAX_PAGE_SIZE);
+        }
         return scanService.findAll(page, size);
     }
 
@@ -61,8 +72,11 @@ public class ScanController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Scan completed successfully",
                     content = @Content(schema = @Schema(implementation = ScanResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Unsupported method or model", content = @Content),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid API key", content = @Content)
+            @ApiResponse(responseCode = "400", description = "Invalid URL, unsupported method or model", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid API key", content = @Content),
+            @ApiResponse(responseCode = "502", description = "Target site blocked or unreachable, or the AI call failed", content = @Content),
+            @ApiResponse(responseCode = "503", description = "OpenAI API key missing or rejected", content = @Content),
+            @ApiResponse(responseCode = "504", description = "Target page did not load in time", content = @Content)
     })
     @PostMapping
     public ResponseEntity<ScanResponse> createScan(
@@ -74,22 +88,22 @@ public class ScanController {
             @RequestBody ScanRequest request) {
         Scan scan;
         if ("AXE".equalsIgnoreCase(request.method())) {
-            scan = scanService.runAxeScan(request.url());
+            scan = scanService.runAxeScan(TargetUrls.normalize(request.url()));
         } else if ("AI".equalsIgnoreCase(request.method())) {
             AiModel model = parseModel(request.model());
-            scan = scanService.runAiScan(request.url(), model);
+            scan = scanService.runAiScan(TargetUrls.normalize(request.url()), model);
         } else if ("COMBINED".equalsIgnoreCase(request.method())) {
             AiModel model = parseModel(request.model());
-            scan = scanService.runCombinedScan(request.url(), model);
+            scan = scanService.runCombinedScan(TargetUrls.normalize(request.url()), model);
         } else {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST,
-                    "Unsupported method: " + request.method()
+                    "Unsupported method: " + request.method() + " (expected AXE, AI or COMBINED)"
             );
         }
 
-        List<Finding> findings = scanService.findingsForScan(scan);
-        ScanResponse response = toResponse(scan, findings);
+        // Respond with the persisted findings so the response matches what GET /scans/{id} reports.
+        ScanResponse response = toResponse(scan, scanService.findingsForScan(scan));
         return ResponseEntity.ok(response);
     }
 
@@ -99,7 +113,7 @@ public class ScanController {
         } catch (IllegalArgumentException e) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST,
-                    "Unsupported model: " + model
+                    "Unsupported model: " + model + " (expected gpt-6-luna, gpt-4o or gpt-4o-mini)"
             );
         }
     }
@@ -156,14 +170,19 @@ public class ScanController {
                 ? scan.getTimestamp().atZone(java.time.ZoneOffset.UTC).toInstant()
                 : null;
 
-        List<Finding> axeFindings = findings.stream()
-                .filter(f -> "AXE".equalsIgnoreCase(f.getSourceMethod())
-                        || "COMBINED".equalsIgnoreCase(f.getSourceMethod()))
-                .toList();
+        // Impact and source totals cover every finding, so the summary describes the same set as
+        // the findings table. Only axe findings carry a rule id, so the rule count is axe-only.
         Map<String, Long> affectedElementsByImpact = new TreeMap<>();
-        axeFindings.forEach(f -> affectedElementsByImpact.merge(
-                f.getSeverity() == null ? "unknown" : f.getSeverity().toLowerCase(), 1L, Long::sum));
-        int distinctRuleCount = (int) axeFindings.stream()
+        Map<String, Long> findingsBySource = new TreeMap<>();
+        findings.forEach(f -> {
+            affectedElementsByImpact.merge(
+                    f.getSeverity() == null ? "unknown" : f.getSeverity().toLowerCase(java.util.Locale.ROOT),
+                    1L, Long::sum);
+            findingsBySource.merge(
+                    f.getSourceMethod() == null ? "UNKNOWN" : f.getSourceMethod().toUpperCase(java.util.Locale.ROOT),
+                    1L, Long::sum);
+        });
+        int distinctRuleCount = (int) findings.stream()
                 .map(Finding::getRuleId)
                 .filter(ruleId -> ruleId != null && !ruleId.isBlank())
                 .distinct()
@@ -179,18 +198,23 @@ public class ScanController {
         ScanStatus status = scan.getStatus() == null ? ScanStatus.COMPLETED : scan.getStatus();
         if (status != ScanStatus.COMPLETED) {
             return new ScanResponse(
-                    scan.getId(), scan.getUrl(), scan.getMethod(), timestamp,
-                    status, scan.getFailureReason(), null, null, null, List.of(), List.of());
+                    scan.getId(), scan.getUrl(), scan.getMethod(), scan.getModelId(),
+                    scan.getAxeVersion(), scan.getBrowserVersion(), timestamp,
+                    status, scan.getFailureReason(), null, null, null, null, List.of(), List.of());
         }
 
         return new ScanResponse(
                 scan.getId(),
                 scan.getUrl(),
                 scan.getMethod(),
+                scan.getModelId(),
+                scan.getAxeVersion(),
+                scan.getBrowserVersion(),
                 timestamp,
                 status,
                 null,
                 affectedElementsByImpact,
+                findingsBySource,
                 distinctRuleCount,
                 wcagCriteria,
                 findingResponses,

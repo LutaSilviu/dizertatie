@@ -4,6 +4,7 @@ import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.TimeoutError;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -12,7 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import usv.dizertatie.ai.AiAnalysisService;
 import usv.dizertatie.ai.AiModel;
+import usv.dizertatie.ai.AiKeyMissingException;
 import usv.dizertatie.ai.AiResponseParser;
+import usv.dizertatie.ai.AiStatusService;
 import usv.dizertatie.ai.PromptLoader;
 import usv.dizertatie.axe.AxeResultParser;
 import usv.dizertatie.axe.AxeService;
@@ -21,6 +24,7 @@ import usv.dizertatie.controller.ScanSummaryResponse;
 import usv.dizertatie.domain.Finding;
 import usv.dizertatie.domain.Scan;
 import usv.dizertatie.domain.ScanStatus;
+import usv.dizertatie.error.FailureMessages;
 import usv.dizertatie.playwright.PageCapture;
 import usv.dizertatie.playwright.PageCaptureService;
 import usv.dizertatie.playwright.PageBlockedException;
@@ -54,9 +58,10 @@ public class ScanService {
     private final AiResponseParser aiResponseParser;
     private final PromptLoader promptLoader;
     private final FindingMergeService findingMergeService;
+    private final AiStatusService aiStatusService;
 
     /**
-     * Returns a paginated list of all scans ordered by timestamp descending.
+     * Returns a paginated list of the scans users ran (benchmark-run scans excluded), newest first.
      * Each item includes summary metadata only (no finding details).
      *
      * @param page zero-based page index
@@ -66,7 +71,7 @@ public class ScanService {
     @Transactional(readOnly = true)
     public ScanHistoryResponse findAll(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        var scanPage = scanRepository.findAllByOrderByTimestampDesc(pageable);
+        var scanPage = scanRepository.findUserScansNewestFirst(pageable);
 
         List<ScanSummaryResponse> content = scanPage.getContent().stream()
                 .map(scan -> {
@@ -112,19 +117,21 @@ public class ScanService {
             String violationsJson;
             String browserVersion;
 
-            Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
-            try {
-                BrowserContext context = browser.newContext(new Browser.NewContextOptions().setBypassCSP(true));
+            // Playwright is not thread-safe: every use of the shared Playwright instance is serialised.
+            synchronized (browserType) {
+                Browser browser = null;
                 try {
+                    browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+                    BrowserContext context = browser.newContext(new Browser.NewContextOptions().setBypassCSP(true));
                     Page page = context.newPage();
                     PageNavigator.open(page, url);
                     browserVersion = browser.browserType().name() + "/" + browser.version();
                     violationsJson = axeService.run(page);
+                } catch (PlaywrightException e) {
+                    throw PageNavigator.loadFailure(url, e);
                 } finally {
-                    context.close();
+                    closeQuietly(browser);
                 }
-            } finally {
-                browser.close();
             }
 
             List<Finding> findings = axeResultParser.parse(violationsJson);
@@ -135,7 +142,7 @@ public class ScanService {
                     .axeVersion(AxeService.AXE_VERSION)
                     .browserVersion(browserVersion)
                     .rawAxeIncomplete(axeResultParser.incompleteAsJson(violationsJson))
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                     .build();
             scan = scanRepository.save(scan);
 
@@ -145,7 +152,7 @@ public class ScanService {
 
             return savedScan;
         } catch (RuntimeException failure) {
-            return persistFailure(url, "AXE", failure);
+            return persistFailure(url, "AXE", null, failure);
         }
     }
 
@@ -164,6 +171,7 @@ public class ScanService {
      */
     @Transactional
     public Scan runAiScan(String url, AiModel model) {
+        requireAiKey();
         try {
             PageCapture capture = pageCaptureService.capture(url);
             String rawJson = aiAnalysisService.analyze(capture, model);
@@ -176,7 +184,7 @@ public class ScanService {
                     .modelId(model.getModelId())
                     .promptVersion(promptLoader.getVersion())
                     .rawAiResponse(rawJson)
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                     .build();
             scan = scanRepository.save(scan);
 
@@ -186,7 +194,7 @@ public class ScanService {
 
             return savedScan;
         } catch (RuntimeException failure) {
-            return persistFailure(url, "AI", failure);
+            return persistFailure(url, "AI", model, failure);
         }
     }
 
@@ -207,27 +215,30 @@ public class ScanService {
      */
     @Transactional
     public Scan runCombinedScan(String url, AiModel model) {
+        requireAiKey();
         try {
             String violationsJson;
             String html;
             byte[] screenshotPng;
             String browserVersion;
 
-            Browser browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
-            try {
-                BrowserContext context = browser.newContext(new Browser.NewContextOptions().setBypassCSP(true));
+            // Playwright is not thread-safe: every use of the shared Playwright instance is serialised.
+            synchronized (browserType) {
+                Browser browser = null;
                 try {
+                    browser = browserType.launch(new BrowserType.LaunchOptions().setHeadless(true));
+                    BrowserContext context = browser.newContext(new Browser.NewContextOptions().setBypassCSP(true));
                     Page page = context.newPage();
                     PageNavigator.open(page, url);
                     browserVersion = browser.browserType().name() + "/" + browser.version();
                     html = page.content();
                     screenshotPng = page.screenshot(new Page.ScreenshotOptions().setFullPage(true));
                     violationsJson = axeService.run(page);
+                } catch (PlaywrightException e) {
+                    throw PageNavigator.loadFailure(url, e);
                 } finally {
-                    context.close();
+                    closeQuietly(browser);
                 }
-            } finally {
-                browser.close();
             }
 
             List<Finding> axeFindings = axeResultParser.parse(violationsJson);
@@ -245,7 +256,7 @@ public class ScanService {
                     .modelId(model.getModelId())
                     .promptVersion(promptLoader.getVersion())
                     .rawAiResponse(rawJson)
-                    .timestamp(LocalDateTime.now())
+                    .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                     .build();
             scan = scanRepository.save(scan);
 
@@ -255,7 +266,30 @@ public class ScanService {
 
             return savedScan;
         } catch (RuntimeException failure) {
-            return persistFailure(url, "COMBINED", failure);
+            return persistFailure(url, "COMBINED", model, failure);
+        }
+    }
+
+    /**
+     * Refuses AI work up front when no usable OpenAI key is configured (same local check as
+     * {@code GET /ai/status}, no network call), instead of capturing the page and sending a
+     * placeholder key to OpenAI. COMBINED is refused too rather than silently returning AXE only.
+     */
+    private void requireAiKey() {
+        if (aiStatusService != null && aiStatusService.isKeyMissing()) {
+            throw new AiKeyMissingException();
+        }
+    }
+
+    /** Closing the browser also closes its contexts and pages; a failure here must not mask the scan result. */
+    private static void closeQuietly(Browser browser) {
+        if (browser == null) {
+            return;
+        }
+        try {
+            browser.close();
+        } catch (PlaywrightException ignored) {
+            // browser already gone
         }
     }
 
@@ -281,35 +315,40 @@ public class ScanService {
         return findingRepository.findByScan(scan);
     }
 
-    private Scan persistFailure(String url, String method, RuntimeException failure) {
+    /**
+     * Records a scan attempt that did not produce evidence, so it can never be read as a clean
+     * page. The status says why: blocked, rate limited, timed out, or failed for any other reason.
+     */
+    private Scan persistFailure(String url, String method, AiModel model, RuntimeException failure) {
         Throwable cause = failure;
-        while (cause.getCause() != null && cause.getCause() != cause) {
-            if (cause instanceof RateLimitedPageException || cause instanceof PageBlockedException
-                    || cause instanceof TimeoutError) break;
+        while (!(cause instanceof RateLimitedPageException || cause instanceof PageBlockedException
+                || cause instanceof TimeoutError)
+                && cause.getCause() != null && cause.getCause() != cause) {
             cause = cause.getCause();
         }
 
         ScanStatus status;
+        String reason;
         if (cause instanceof RateLimitedPageException) {
             status = ScanStatus.RATE_LIMITED;
+            reason = cause.getMessage();
         } else if (cause instanceof PageBlockedException) {
             status = ScanStatus.BLOCKED;
+            reason = cause.getMessage();
         } else if (cause instanceof TimeoutError) {
             status = ScanStatus.TIMED_OUT;
+            reason = FailureMessages.describe(failure);
         } else {
             status = ScanStatus.FAILED;
+            reason = "Scan failed: " + FailureMessages.describe(failure);
         }
-
-        String reason = cause.getMessage();
         if (reason == null || reason.isBlank()) reason = "The scan could not be completed.";
-        if (status == ScanStatus.FAILED) {
-            reason = "Scan failed: " + reason;
-        }
 
         return scanRepository.save(Scan.builder()
                 .url(url)
                 .method(method)
-                .timestamp(LocalDateTime.now())
+                .modelId(model == null ? null : model.getModelId())
+                .timestamp(LocalDateTime.now(ZoneOffset.UTC))
                 .status(status)
                 .failureReason(reason)
                 .build());

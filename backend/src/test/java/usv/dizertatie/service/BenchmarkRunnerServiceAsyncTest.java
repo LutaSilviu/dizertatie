@@ -62,6 +62,11 @@ class BenchmarkRunnerServiceAsyncTest {
         ScanService scanService() {
             return mock(ScanService.class);
         }
+
+        @Bean
+        usv.dizertatie.ai.AiStatusService aiStatusService() {
+            return mock(usv.dizertatie.ai.AiStatusService.class);
+        }
     }
 
     @Autowired

@@ -1,6 +1,7 @@
 package usv.dizertatie.controller;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.List;
 
 /**
  * Response body for {@code GET /benchmark-runs/{id}/status}.
@@ -14,7 +15,8 @@ public record BenchmarkRunStatusResponse(
         String status,
         int pagesDone,
         int totalPages,
-        LocalDateTime createdAt,
+        /** Creation time, ISO-8601 UTC. */
+        Instant createdAt,
 
         /** Average wall-clock latency of AXE-only scans, in milliseconds. Null if not yet complete. */
         Double avgLatencyAxeMs,
@@ -26,6 +28,12 @@ public record BenchmarkRunStatusResponse(
         Double avgLatencyCombinedMs,
 
         /** Average estimated OpenAI cost per page in USD. Null if not yet complete. */
-        Double avgCostPerPageUsd
+        Double avgCostPerPageUsd,
+
+        /** Scan methods requested for this run, in canonical order (AXE, AI, COMBINED). */
+        List<String> methods,
+
+        /** Human-readable summary of failed scans, e.g. "AI failed on 2/2 pages: ..."; null when none failed. */
+        String error
 ) {
 }

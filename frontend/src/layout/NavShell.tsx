@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import styles from './NavShell.module.css'
 
 const navLinks = [
@@ -11,6 +11,18 @@ const navLinks = [
 
 function NavShell() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const location = useLocation()
+
+  // Close the mobile menu on navigation and on Escape.
+  useEffect(() => setMenuOpen(false), [location.pathname])
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuOpen])
 
   return (
     <div className={styles.shell}>
@@ -18,6 +30,7 @@ function NavShell() {
         <nav className={styles.nav} aria-label="Main navigation">
           <span className={styles.brand}>A11y Analyzer</span>
           <ul
+            id="main-nav-list"
             className={[styles.navList, menuOpen ? styles.navListOpen : ''].join(' ').trim()}
           >
             {navLinks.map(({ to, label }) => (
@@ -38,9 +51,10 @@ function NavShell() {
             className={styles.menuToggle}
             aria-label="Toggle navigation menu"
             aria-expanded={menuOpen}
+            aria-controls="main-nav-list"
             onClick={() => setMenuOpen((prev) => !prev)}
           >
-            &#9776;
+            {menuOpen ? '✕' : '☰'}
           </button>
         </nav>
       </header>

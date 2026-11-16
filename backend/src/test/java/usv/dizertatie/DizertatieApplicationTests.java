@@ -1,8 +1,13 @@
 package usv.dizertatie;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.aop.support.AopUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import usv.dizertatie.service.BenchmarkRunExecutor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @TestPropertySource(properties = {
@@ -18,8 +23,17 @@ import org.springframework.test.context.TestPropertySource;
 })
 class DizertatieApplicationTests {
 
+	@Autowired
+	private BenchmarkRunExecutor benchmarkRunExecutor;
+
 	@Test
 	void contextLoads() {
+	}
+
+	/** Benchmark runs take minutes; they must not execute on the HTTP request thread. */
+	@Test
+	void benchmarkRunExecutor_isAsyncProxy() {
+		assertThat(AopUtils.isAopProxy(benchmarkRunExecutor)).isTrue();
 	}
 
 }

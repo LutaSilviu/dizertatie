@@ -52,7 +52,7 @@ class CsvSerializerTest {
         assertThat(lines).hasSize(2);
         assertThat(lines[0]).isEqualTo(HEADER);
         assertThat(lines[1]).isEqualTo(
-                "1,https://example.com,AI,2024-01-15T10:30,axe,1.1.1,A,serious,img,Image missing alt text");
+                "1,https://example.com,AI,2024-01-15T10:30:00Z,axe,1.1.1,A,serious,img,Image missing alt text");
     }
 
     @Test
