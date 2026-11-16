@@ -47,7 +47,12 @@ public class AxeService {
         // addScriptTag evaluates in the page's global scope. Wrapping the source in
         // an arrow function body instead would scope axe-core's own `var axe` to that
         // function, leaving `axe` undefined by the time the audit call runs.
-        page.addScriptTag(new Page.AddScriptTagOptions().setContent(axeScript));
+        inject(page);
         return (String) page.evaluate("async () => { const r = await axe.run(document, " + RUN_OPTIONS + "); return JSON.stringify({ violations: r.violations, incomplete: r.incomplete }); }");
+    }
+
+    /** Loads axe-core into the page's global scope without running an audit. */
+    public void inject(Page page) {
+        page.addScriptTag(new Page.AddScriptTagOptions().setContent(axeScript));
     }
 }

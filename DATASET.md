@@ -68,9 +68,9 @@ fixtures. Each finding was then checked against the local fixture markup.
 * **Selector format.** `MetricsService` matches a finding to a label only when the criterion and the
   selector **string** are identical. Each element is therefore named with `axe.utils.getSelector`
   (axe-core 4.9.0), which is the generator axe uses for its own finding targets. This choice only
-  names the element; it does not decide what gets labelled. It does mean that AI findings, which
-  write their own selectors, rarely match a label even when they point at the right element. See
-  the caveats below.
+  names the element; it does not decide what gets labelled. AI findings are brought into the same
+  format before they are stored: each selector the model writes is resolved in the page and
+  replaced by the `axe.utils.getSelector` name of every element it matches (`AiFindingGrounder`).
 * **Severity** is the maintainer's judgement, not axe's impact:
   * critical: the content or function is unavailable, such as unnamed links or controls,
     informative images with no alternative, or links you can't use from the keyboard.
@@ -124,9 +124,12 @@ None of the class names they used (`p.light-text`, `a.nav-link`, `div.accordion`
 
 ## Caveats for the benchmark
 
-1. **Exact-string matching.** `MetricsService` compares selector strings, not elements. An AI
-   finding on the right element with a different selector (`img.teaser` instead of
-   `img[src$="teaser_right1.jpg"]`) counts as one false positive plus one false negative.
+1. **Exact-string matching.** `MetricsService` compares selector strings, not elements. AI
+   selectors are therefore resolved to elements first (`AiFindingGrounder`): `img.teaser` becomes
+   `img[src$="teaser_right1.jpg"]`, and a selector that covers several elements becomes one finding
+   per element. A selector the model wrote that matches nothing in the page is kept as written and
+   counts as a false positive. A broad selector (`#main a`) claims every element it matches, so
+   over-general AI findings lower AI precision.
 2. **One criterion per axe finding.** `AxeResultParser` keeps only the first `wcagNNN` tag. For
    example, axe's `link-name` is recorded as 2.4.4, so the 4.1.2 label on the same link can't be met
    by axe.

@@ -145,6 +145,7 @@ A run can use the built-in dataset or your own URLs, and any subset of the three
 Counting rules (details in [ADR 0001](docs/adr/0001-benchmark-counting-rules.md)):
 
 - a finding matches a label when both have the same WCAG criterion and element selector;
+- AI findings are tied to real elements first: each selector the model writes is resolved in the page and replaced by axe-core's name for every element it matches, so AI, axe-core and the labels name an element identically (a selector matching nothing is kept as written);
 - several findings on the same criterion and element count once;
 - a page whose scan did not complete for a method is left out of that method's counts rather than scored as all false negatives.
 
@@ -170,6 +171,12 @@ The backend reads the project's `.env` file directly, so it uses the same databa
 
 ```bash
 ./mvnw test   # backend test suite (uses an in-memory H2 database)
+```
+
+If the Settings page says OpenAI could not be reached and the backend log shows `PKIX path building failed`, HTTPS traffic on the machine is being inspected (antivirus web shield, corporate proxy) and Java does not know that certificate. On Windows, start the backend with the system certificate store instead:
+
+```bash
+./mvnw spring-boot:run "-Dspring-boot.run.jvmArguments=-Djavax.net.ssl.trustStoreType=Windows-ROOT"
 ```
 
 ### Frontend

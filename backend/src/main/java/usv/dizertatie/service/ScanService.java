@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import usv.dizertatie.ai.AiAnalysisService;
+import usv.dizertatie.ai.AiFindingGrounder;
 import usv.dizertatie.ai.AiModel;
 import usv.dizertatie.ai.AiKeyMissingException;
 import usv.dizertatie.ai.AiResponseParser;
@@ -59,6 +60,7 @@ public class ScanService {
     private final PromptLoader promptLoader;
     private final FindingMergeService findingMergeService;
     private final AiStatusService aiStatusService;
+    private final AiFindingGrounder aiFindingGrounder;
 
     /**
      * Returns a paginated list of the scans users ran (benchmark-run scans excluded), newest first.
@@ -162,6 +164,7 @@ public class ScanService {
      *   <li>Captures the rendered HTML via {@link PageCaptureService}</li>
      *   <li>Sends HTML to the AI model via {@link AiAnalysisService}</li>
      *   <li>Parses the raw JSON response into {@link Finding} entities</li>
+     *   <li>Resolves each finding's selector to real page elements ({@link AiFindingGrounder})</li>
      *   <li>Persists a {@link Scan} and all findings</li>
      * </ol>
      *
@@ -175,7 +178,7 @@ public class ScanService {
         try {
             PageCapture capture = pageCaptureService.capture(url);
             String rawJson = aiAnalysisService.analyze(capture, model);
-            List<Finding> findings = aiResponseParser.parse(rawJson);
+            List<Finding> findings = ground(url, aiResponseParser.parse(rawJson));
 
             Scan scan = Scan.builder()
                     .url(url)
@@ -243,7 +246,7 @@ public class ScanService {
 
             List<Finding> axeFindings = axeResultParser.parse(violationsJson);
             String rawJson = aiAnalysisService.analyze(new PageCapture(html, screenshotPng), model);
-            List<Finding> aiFindings = aiResponseParser.parse(rawJson);
+            List<Finding> aiFindings = ground(url, aiResponseParser.parse(rawJson));
             List<Finding> mergedFindings = findingMergeService.merge(axeFindings, aiFindings);
 
             Scan scan = Scan.builder()
@@ -279,6 +282,11 @@ public class ScanService {
         if (aiStatusService != null && aiStatusService.isKeyMissing()) {
             throw new AiKeyMissingException();
         }
+    }
+
+    /** Names the elements the model pointed at the way axe-core names them; see {@link AiFindingGrounder}. */
+    private List<Finding> ground(String url, List<Finding> aiFindings) {
+        return aiFindingGrounder == null ? aiFindings : aiFindingGrounder.ground(url, aiFindings);
     }
 
     /** Closing the browser also closes its contexts and pages; a failure here must not mask the scan result. */

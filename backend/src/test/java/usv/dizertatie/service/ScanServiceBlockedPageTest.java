@@ -100,7 +100,7 @@ class ScanServiceBlockedPageTest {
         scanRepository = mock(ScanRepository.class);
         findingRepository = mock(FindingRepository.class);
         scanService = new ScanService(playwright.chromium(), axeService, new AxeResultParser(new ObjectMapper()),
-                scanRepository, findingRepository, null, null, null, null, null, null);
+                scanRepository, findingRepository, null, null, null, null, null, null, null);
     }
 
     @AfterEach

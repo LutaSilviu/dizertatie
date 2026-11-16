@@ -59,6 +59,13 @@ class ScanServiceTest {
     @Mock private PromptLoader promptLoader;
     @Mock private FindingMergeService findingMergeService;
     @Mock private AiStatusService aiStatusService;
+    @Mock private usv.dizertatie.ai.AiFindingGrounder aiFindingGrounder;
+
+    @org.junit.jupiter.api.BeforeEach
+    void groundingKeepsFindingsUnchanged() {
+        org.mockito.Mockito.lenient().when(aiFindingGrounder.ground(anyString(), any()))
+                .thenAnswer(inv -> inv.getArgument(1));
+    }
 
     @InjectMocks private ScanService scanService;
 
@@ -148,7 +155,7 @@ class ScanServiceTest {
         ScanService service = new ScanService(browserType, axeService, axeResultParser, scanRepository,
                 findingRepository, pageCaptureService, aiAnalysisService,
                 new AiResponseParser(new com.fasterxml.jackson.databind.ObjectMapper()),
-                promptLoader, findingMergeService, aiStatusService);
+                promptLoader, findingMergeService, aiStatusService, null);
         when(pageCaptureService.capture(URL)).thenReturn(new PageCapture("<html></html>", new byte[0]));
         when(scanRepository.save(any(Scan.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -169,7 +176,7 @@ class ScanServiceTest {
         ScanService service = new ScanService(browserType, axeService, axeResultParser, scanRepository,
                 findingRepository, pageCaptureService, aiAnalysisService,
                 new AiResponseParser(new com.fasterxml.jackson.databind.ObjectMapper()),
-                promptLoader, findingMergeService, aiStatusService);
+                promptLoader, findingMergeService, aiStatusService, null);
         when(pageCaptureService.capture(URL)).thenReturn(new PageCapture("<html></html>", new byte[0]));
         when(scanRepository.save(any(Scan.class))).thenAnswer(inv -> inv.getArgument(0));
         when(aiAnalysisService.analyze(any(), any())).thenReturn("{\"findings\": []}");
