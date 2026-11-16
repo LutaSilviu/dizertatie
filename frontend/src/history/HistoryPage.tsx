@@ -141,7 +141,7 @@ function HistoryPage() {
                     </td>
                     <td className={styles.urlCell} title={scan.url}>
                       <Link to={`/report/${scan.id}`} aria-label={scan.url}>
-                        {truncateMiddle(scan.url)}
+                        {truncateMiddle(scan.url, 44)}
                       </Link>
                     </td>
                     <td>{scan.method}</td>

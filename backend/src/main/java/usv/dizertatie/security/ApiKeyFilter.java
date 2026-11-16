@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 @Component
 public class ApiKeyFilter extends OncePerRequestFilter {
@@ -17,7 +19,8 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     private static final String API_KEY_HEADER = "X-API-Key";
     private static final String HEALTH_PATH = "/health";
 
-    @Value("${APP_API_KEY}")
+    /** Same local-only fallback as docker-compose.yml and the Vite dev proxy. */
+    @Value("${APP_API_KEY:local-development-only}")
     private String expectedApiKey;
 
     @Override
@@ -35,7 +38,7 @@ public class ApiKeyFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String apiKey = request.getHeader(API_KEY_HEADER);
 
-        if (apiKey == null || !apiKey.equals(expectedApiKey)) {
+        if (apiKey == null || !matches(apiKey, expectedApiKey)) {
             response.setStatus(HttpStatus.UNAUTHORIZED.value());
             response.setContentType("application/json");
             response.getWriter().write("{\"error\": \"Unauthorized: missing or invalid API key\"}");
@@ -43,5 +46,11 @@ public class ApiKeyFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /** Constant-time comparison, so response timing does not reveal how much of a key matched. */
+    private static boolean matches(String provided, String expected) {
+        return expected != null && MessageDigest.isEqual(
+                provided.getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8));
     }
 }

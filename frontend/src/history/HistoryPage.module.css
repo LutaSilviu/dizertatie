@@ -70,10 +70,14 @@
 }
 
 .failureReason {
-  max-width: 360px;
+  /* Reasons contain URLs and error codes with no spaces; let them break instead of overflowing. */
+  min-width: 200px;
+  max-width: 280px;
   margin: 0.25rem 0 0;
   color: #9b2c2c;
+  font-size: 0.82rem;
   white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .pagination {

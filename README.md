@@ -2,7 +2,7 @@
 
 A master's thesis project at **USV Suceava** that evaluates web page accessibility by comparing three analysis methods:
 
-- **AXE** — rule-based analysis using Axe-Core 4.9 via Playwright
+- **AXE** — rule-based analysis using Axe-Core 4.14 via Playwright
 - **AI** — LLM-powered analysis using OpenAI GPT-6 Luna, GPT-4o, or GPT-4o-mini
 - **COMBINED** — both methods merged with duplicate findings deduplicated
 
@@ -14,9 +14,9 @@ The system scores pages against **WCAG 2.2** criteria, supports benchmarking wit
 
 | Service | Technology | Port |
 |---------|-----------|------|
-| Database | PostgreSQL 16 | 5432 |
+| Database | PostgreSQL 16 | 5432 (loopback only; `POSTGRES_PORT`) |
 | Backend | Spring Boot 4.x · Java 21 · Playwright · Spring AI | 8080 |
-| Frontend | React 19 · Vite | 80 |
+| Frontend | React 19 · Vite | 80 (`FRONTEND_PORT`) |
 
 ---
 
@@ -36,6 +36,17 @@ docker compose up --build
 | http://localhost:8080 | Backend REST API |
 | http://localhost:8080/swagger-ui.html | Swagger UI (interactive API docs) |
 
+If port 80 is already in use (on Windows, IIS or another service often holds it), set
+`FRONTEND_PORT=8088` in `.env` and open http://localhost:8088 instead.
+
+### If the image build fails with a certificate error
+
+`PKIX path building failed` or `unable to verify the first certificate` during
+`docker compose up --build` means something on the machine is inspecting HTTPS traffic
+(an antivirus "web shield" or a corporate proxy) and the build containers do not trust its
+certificate. Pause HTTPS scanning for the duration of the build, or run the services outside
+Docker as described under [Development Setup](#development-setup).
+
 ---
 
 ## Environment Variables
@@ -51,6 +62,11 @@ an OpenAI key. AI and COMBINED analysis require a valid `OPENAI_API_KEY`.
 | `POSTGRES_PASSWORD` | PostgreSQL password (use a private value outside local development) | `changeme` |
 | `APP_API_KEY` | API key required by backend endpoints (local fallback: `local-development-only`) | `my-secret-key` |
 | `OPENAI_API_KEY` | OpenAI API key required for AI and COMBINED analysis | `sk-...` |
+| `FRONTEND_PORT` | Optional. Host port for the frontend (default `80`) | `8088` |
+| `POSTGRES_PORT` | Optional. Host port for the database, bound to 127.0.0.1 (default `5432`) | `5433` |
+
+The Settings page shows whether the configured OpenAI key is missing, rejected or working.
+While it is missing, AI and COMBINED scans are refused with an explanation and AXE keeps working.
 
 ### If PostgreSQL rejects the password after it has already started
 
@@ -84,7 +100,7 @@ The Docker frontend proxy reads `APP_API_KEY` from `.env` and adds it to API req
 
 ### AXE
 
-Rule-based analysis powered by **Axe-Core 4.9** running inside a headless Chromium browser via **Playwright**. Produces a list of WCAG violations with impact levels (critical, serious, moderate, minor) and affected element selectors.
+Rule-based analysis powered by **Axe-Core 4.14** running inside a headless Chromium browser via **Playwright**. Produces a list of WCAG violations with impact levels (critical, serious, moderate, minor) and affected element selectors.
 
 ### AI
 
@@ -98,7 +114,17 @@ Runs both AXE and AI analysis then merges the results. Duplicate findings (same 
 
 ## Scan report evidence
 
-Completed axe-core reports show affected elements grouped by axe impact, the number of distinct rules with findings, and WCAG criteria associated with findings. They also show axe-core checks that need manual review separately from violations. The report does not calculate a composite severity score or WCAG pass percentages; absence of automated findings does not establish that a criterion passes.
+A completed report shows:
+
+- the engine that produced it: axe-core version and browser version, and the AI model for AI and COMBINED scans;
+- reported elements grouped by impact and by source (axe-core only, AI only, or both), counting every finding in the table below them;
+- the number of distinct axe-core rules with findings (AI findings are not tied to a rule);
+- the WCAG criteria associated with findings;
+- axe-core checks that need manual review, listed separately from violations.
+
+The report does not calculate a composite severity score or WCAG pass percentages; absence of automated findings does not establish that a criterion passes.
+
+A scan that could not produce evidence is stored with a status instead of an empty result: `BLOCKED` (bot challenge, HTTP 401/403), `RATE_LIMITED` (HTTP 429), `TIMED_OUT`, or `FAILED` (anything else, including an AI reply that is not the expected JSON). Such a scan shows the reason and no findings, so it cannot be mistaken for a clean page.
 
 ---
 
@@ -114,7 +140,15 @@ Metrics computed per method:
 | **Recall** | Of all true violations, the fraction correctly detected |
 | **F1** | Harmonic mean of precision and recall |
 
-Results can be exported as CSV for further analysis.
+A run can use the built-in dataset or your own URLs, and any subset of the three methods. Methods are isolated from each other: if AI is unavailable, AXE results are still produced and the run's error summary says what failed.
+
+Counting rules (details in [ADR 0001](docs/adr/0001-benchmark-counting-rules.md)):
+
+- a finding matches a label when both have the same WCAG criterion and element selector;
+- several findings on the same criterion and element count once;
+- a page whose scan did not complete for a method is left out of that method's counts rather than scored as all false negatives.
+
+Results can be exported as CSV for further analysis. The dataset and how its labels were derived are described in [DATASET.md](DATASET.md).
 
 ---
 
@@ -122,7 +156,8 @@ Results can be exported as CSV for further analysis.
 
 > These steps are only needed if you want to run services outside Docker.
 >
-> **Requirements:** Java 21, Node 22, PostgreSQL 16 running locally.
+> **Requirements:** Java 21, Node 22, and a PostgreSQL 16 database. The simplest database is
+> the Compose one: `docker compose up -d db` publishes it on `127.0.0.1:5432`.
 
 ### Backend
 
@@ -131,7 +166,11 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-The backend reads `application.properties` and resolves `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `APP_API_KEY`, and `OPENAI_API_KEY` from environment variables (defaults fall back to the local Docker Compose values).
+The backend reads the project's `.env` file directly, so it uses the same database credentials, `APP_API_KEY` and `OPENAI_API_KEY` as Docker Compose; without a `.env` it falls back to the Compose defaults. Environment variables take precedence, and `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` override the database settings entirely. The first run downloads the Playwright browsers.
+
+```bash
+./mvnw test   # backend test suite (uses an in-memory H2 database)
+```
 
 ### Frontend
 
@@ -141,4 +180,4 @@ npm install
 npm run dev
 ```
 
-The Vite dev server starts on `http://localhost:5173` by default and proxies API calls to `http://localhost:8080`.
+The Vite dev server starts on `http://localhost:5173` by default and proxies `/api` calls to `http://localhost:8080`, adding the `APP_API_KEY` from `.env`.
