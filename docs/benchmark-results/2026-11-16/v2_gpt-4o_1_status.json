@@ -1,0 +1,1 @@
+{"id":5,"name":"v2 gpt-4o run 1","status":"COMPLETE","pagesDone":5,"totalPages":5,"createdAt":"2026-11-16T17:00:19.951112Z","avgLatencyAxeMs":4149.4,"avgLatencyAiMs":20354.2,"avgLatencyCombinedMs":13395.2,"avgCostPerPageUsd":0.028750000000000005,"methods":["AXE","AI","COMBINED"],"error":null}

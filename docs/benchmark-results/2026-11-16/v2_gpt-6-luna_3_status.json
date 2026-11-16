@@ -1,0 +1,1 @@
+{"id":4,"name":"v2 gpt-6-luna run 3","status":"COMPLETE","pagesDone":5,"totalPages":5,"createdAt":"2026-11-16T16:57:00.014569Z","avgLatencyAxeMs":8080.0,"avgLatencyAiMs":26318.4,"avgLatencyCombinedMs":20417.0,"avgCostPerPageUsd":0.00125,"methods":["AXE","AI","COMBINED"],"error":null}
