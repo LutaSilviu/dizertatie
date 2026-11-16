@@ -52,6 +52,7 @@ public class BenchmarkRunExecutor {
     private final BenchmarkPageRepository benchmarkPageRepository;
     private final ScanService scanService;
     private final AiStatusService aiStatusService;
+    private final usv.dizertatie.ai.AiResponseCache aiResponseCache;
 
     /** Per-method outcome counts and the distinct failure reasons, in first-seen order. */
     static final class MethodTally {
@@ -96,6 +97,10 @@ public class BenchmarkRunExecutor {
         try {
             run.setStatus("RUNNING");
             run = benchmarkRunRepository.save(run);
+
+            // Each run asks the model afresh, so repeated runs are independent samples. Within a
+            // run, AI and COMBINED share one reply per page, so COMBINED is exactly AXE plus AI.
+            aiResponseCache.clear();
 
             RunContext ctx = new RunContext();
             for (String m : methods) {
@@ -145,6 +150,7 @@ public class BenchmarkRunExecutor {
                 continue;
             }
             try {
+                aiResponseCache.takeReusedMillis();
                 long start = System.currentTimeMillis();
                 Scan scan = switch (method) {
                     case BenchmarkMethods.AXE -> scanService.runAxeScan(url);
@@ -152,7 +158,9 @@ public class BenchmarkRunExecutor {
                     case BenchmarkMethods.COMBINED -> scanService.runCombinedScan(url, model);
                     default -> throw new IllegalStateException("Unknown method " + method);
                 };
-                long latency = System.currentTimeMillis() - start;
+                // A reply reused from the AI scan of the same page still counts: the latency
+                // reported for COMBINED is what the method takes on its own.
+                long latency = System.currentTimeMillis() - start + aiResponseCache.takeReusedMillis();
                 // ScanService persists failed attempts instead of throwing. A scan that did not
                 // complete has no evidence, so it must not be scored as "found nothing".
                 if (scan.getStatus() != null && scan.getStatus() != ScanStatus.COMPLETED) {

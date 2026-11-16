@@ -117,37 +117,49 @@ public class AxeResultParser {
         JsonNode tags = violation.path("tags");
         JsonNode nodes = violation.path("nodes");
 
-        String wcagCriterion = extractWcagCriterion(tags);
-        String wcagLevel = resolveWcagLevel(wcagCriterion, tags);
-
-        List<Finding> findings = new ArrayList<>();
-
+        // A rule can fail several success criteria (link-name: 2.4.4 and 4.1.2). Each is a separate
+        // claim about the element, so each gets its own finding (docs/adr/0001, rule 5).
+        List<String> criteria = extractWcagCriteria(tags);
+        List<String> selectors = new ArrayList<>();
         if (nodes.isArray() && nodes.size() > 0) {
             for (JsonNode node : nodes) {
-                String elementSelector = extractSelector(node);
-                findings.add(buildFinding(id, wcagCriterion, wcagLevel, impact, elementSelector, description));
+                selectors.add(extractSelector(node));
             }
         } else {
             // No nodes — produce one finding with empty selector
-            findings.add(buildFinding(id, wcagCriterion, wcagLevel, impact, "", description));
+            selectors.add("");
         }
 
+        List<Finding> findings = new ArrayList<>();
+        for (String elementSelector : selectors) {
+            if (criteria.isEmpty()) {
+                findings.add(buildFinding(id, null, resolveWcagLevel(null, tags), impact, elementSelector, description));
+            }
+            for (String criterion : criteria) {
+                findings.add(buildFinding(id, criterion, resolveWcagLevel(criterion, tags), impact,
+                        elementSelector, description));
+            }
+        }
         return findings;
     }
 
-    private String extractWcagCriterion(JsonNode tags) {
+    /** Every success criterion named by the rule's tags, in tag order, without repeats. */
+    private List<String> extractWcagCriteria(JsonNode tags) {
+        List<String> criteria = new ArrayList<>();
         if (tags.isArray()) {
             for (JsonNode tag : tags) {
-                String tagText = tag.asText("");
-                var matcher = WCAG_CRITERION_TAG.matcher(tagText);
+                var matcher = WCAG_CRITERION_TAG.matcher(tag.asText(""));
                 if (matcher.matches()) {
                     // axe tags concatenate the principle, guideline, and full criterion number:
                     // "wcag111" → "1.1.1", "wcag2110" → "2.1.10".
-                    return matcher.group(1) + "." + matcher.group(2) + "." + matcher.group(3);
+                    String criterion = matcher.group(1) + "." + matcher.group(2) + "." + matcher.group(3);
+                    if (!criteria.contains(criterion)) {
+                        criteria.add(criterion);
+                    }
                 }
             }
         }
-        return null;
+        return criteria;
     }
 
     /**

@@ -18,6 +18,10 @@ import java.util.function.Supplier;
 public class AiResponseCache {
 
     private final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+    /** How long the model took to produce each cached reply. */
+    private final ConcurrentHashMap<String, Long> computeMillis = new ConcurrentHashMap<>();
+    /** Model time the current thread did not spend because replies came from the cache. */
+    private final ThreadLocal<Long> reusedMillis = ThreadLocal.withInitial(() -> 0L);
 
     /**
      * Returns a cached response if one exists for the given inputs, otherwise invokes
@@ -33,15 +37,18 @@ public class AiResponseCache {
         String key = computeKey(html, model.getModelId(), promptVersion);
         String cached = cache.get(key);
         if (cached != null) {
+            reusedMillis.set(reusedMillis.get() + computeMillis.getOrDefault(key, 0L));
             return cached;
         }
         // Not computeIfAbsent: that would hold a map lock for the whole (slow) OpenAI call and
         // block unrelated scans whose keys share the bin. Two identical concurrent misses may both
         // call the API; the first stored response wins so later reads stay consistent.
+        long start = System.nanoTime();
         String fresh = apiCall.get();
         if (fresh == null) {
             return null;
         }
+        computeMillis.putIfAbsent(key, (System.nanoTime() - start) / 1_000_000);
         String previous = cache.putIfAbsent(key, fresh);
         return previous != null ? previous : fresh;
     }
@@ -60,6 +67,17 @@ public class AiResponseCache {
      */
     public void clear() {
         cache.clear();
+        computeMillis.clear();
+    }
+
+    /**
+     * Returns the model time the calling thread saved through cache hits since the last call, and
+     * resets it. A caller timing a scan adds this to get what the scan costs on its own.
+     */
+    public long takeReusedMillis() {
+        long value = reusedMillis.get();
+        reusedMillis.remove();
+        return value;
     }
 
     private String computeKey(String html, String modelId, String promptVersion) {

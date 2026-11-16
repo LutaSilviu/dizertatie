@@ -30,8 +30,24 @@ class PromptLoaderTest {
     }
 
     @Test
-    void getVersionReturnsV1() {
-        assertThat(promptLoader.getVersion()).isEqualTo("v1");
+    void defaultVersionIsV2_withSelectorRules() {
+        assertThat(promptLoader.getVersion()).isEqualTo("v2");
+        assertThat(promptLoader.getPrompt()).contains("Selector rules");
+    }
+
+    @Test
+    void olderVersionCanBeSelected_forComparisonRuns() throws Exception {
+        PromptLoader v1 = new PromptLoader("v1");
+        v1.load();
+
+        assertThat(v1.getVersion()).isEqualTo("v1");
+        assertThat(v1.getPrompt()).doesNotContain("Selector rules");
+    }
+
+    @Test
+    void malformedVersionIsRejected() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new PromptLoader("../secrets"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

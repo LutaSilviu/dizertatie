@@ -10,20 +10,28 @@ import java.nio.charset.StandardCharsets;
 /**
  * Loads the versioned accessibility analysis system prompt from the classpath.
  *
- * <p>The prompt is stored at {@code prompts/accessibility-v1.txt}. The version
+ * <p>The prompt is stored at {@code prompts/accessibility-<version>.txt}; the version is chosen with
+ * {@code app.ai.prompt-version} (environment variable {@code AI_PROMPT_VERSION}), so results of
+ * different prompt versions can be compared. v2 adds the selector and evidence rules. The version
  * string is derived from the filename convention {@code accessibility-<version>.txt}.
  */
 @Component
 public class PromptLoader {
 
-    private static final String PROMPT_RESOURCE = "prompts/accessibility-v1.txt";
-    private static final String VERSION = "v1";
+    private final String version;
+
+    public PromptLoader(@org.springframework.beans.factory.annotation.Value("${app.ai.prompt-version:v2}") String version) {
+        if (version == null || !version.matches("v\\d+")) {
+            throw new IllegalArgumentException("app.ai.prompt-version must look like v1, v2, ...: " + version);
+        }
+        this.version = version;
+    }
 
     private String promptText;
 
     @PostConstruct
     void load() throws IOException {
-        ClassPathResource resource = new ClassPathResource(PROMPT_RESOURCE);
+        ClassPathResource resource = new ClassPathResource("prompts/accessibility-" + version + ".txt");
         promptText = resource.getContentAsString(StandardCharsets.UTF_8);
     }
 
@@ -39,9 +47,9 @@ public class PromptLoader {
     /**
      * Returns the version identifier of the currently loaded prompt.
      *
-     * @return {@code "v1"}
+     * @return the configured version, e.g. {@code "v2"}
      */
     public String getVersion() {
-        return VERSION;
+        return version;
     }
 }

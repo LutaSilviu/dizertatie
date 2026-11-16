@@ -40,7 +40,7 @@ class BenchmarkRunnerServiceAsyncTest {
 
     @Configuration
     @EnableAsync
-    @Import({BenchmarkRunnerService.class, BenchmarkRunExecutor.class})
+    @Import({BenchmarkRunnerService.class, BenchmarkRunExecutor.class, usv.dizertatie.ai.AiResponseCache.class})
     static class Config {
 
         @Bean

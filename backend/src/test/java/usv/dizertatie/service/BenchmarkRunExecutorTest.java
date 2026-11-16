@@ -42,6 +42,7 @@ class BenchmarkRunExecutorTest {
     @Mock private BenchmarkPageRepository pageRepository;
     @Mock private ScanService scanService;
     @Mock private AiStatusService aiStatusService;
+    private final usv.dizertatie.ai.AiResponseCache aiResponseCache = new usv.dizertatie.ai.AiResponseCache();
 
     private BenchmarkRunExecutor executor;
     private BenchmarkRun run;
@@ -50,7 +51,7 @@ class BenchmarkRunExecutorTest {
 
     @BeforeEach
     void setUp() {
-        executor = new BenchmarkRunExecutor(runRepository, pageRepository, scanService, aiStatusService);
+        executor = new BenchmarkRunExecutor(runRepository, pageRepository, scanService, aiStatusService, aiResponseCache);
         run = BenchmarkRun.builder().id(7L).name("r").status("PENDING")
                 .createdAt(LocalDateTime.now()).totalPages(2).pagesDone(0).build();
         when(aiStatusService.isKeyMissing()).thenReturn(false);
@@ -261,5 +262,36 @@ class BenchmarkRunExecutorTest {
         assertThat(page("https://x.test/").getLatencyAxeMs()).isNull();
         assertThat(run.getStatus()).isEqualTo("FAILED");
         assertThat(run.getErrorSummary()).contains("AXE failed on 1/1 page").contains("HTTP 403");
+    }
+
+    /** COMBINED reuses the AI scan's reply; its latency must still include the model's time. */
+    @Test
+    void execute_combinedLatencyIncludesModelTimeReusedFromCache() {
+        stubRunPersistence();
+        stubPages("https://x.test/");
+        run.setTotalPages(1);
+        Scan done = Scan.builder().id(11L).status(usv.dizertatie.domain.ScanStatus.COMPLETED).build();
+        when(scanService.runAiScan(anyString(), any())).thenAnswer(inv -> {
+            aiResponseCache.getOrCompute("html", AiModel.GPT4O_MINI, "v2", () -> {
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return "{}";
+            });
+            return done;
+        });
+        when(scanService.runCombinedScan(anyString(), any())).thenAnswer(inv -> {
+            aiResponseCache.getOrCompute("html", AiModel.GPT4O_MINI, "v2", () -> {
+                throw new AssertionError("reply must come from the cache");
+            });
+            return done;
+        });
+
+        executor.execute(7L, List.of("https://x.test/"), AiModel.GPT4O_MINI,
+                List.of(BenchmarkMethods.AI, BenchmarkMethods.COMBINED));
+
+        assertThat(page("https://x.test/").getLatencyCombinedMs()).isGreaterThanOrEqualTo(290L);
     }
 }

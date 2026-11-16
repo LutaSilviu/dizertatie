@@ -237,4 +237,22 @@ class AxeResultParserTest {
         assertThat(findings).extracting(Finding::getWcagCriterion).containsExactly("2.5.8", "1.3.5", "1.4.12");
         assertThat(findings).extracting(Finding::getWcagLevel).containsExactly("AA", "AA", "AA");
     }
+
+    /** #41: a rule that fails two success criteria reports both, once per element. */
+    @Test
+    void ruleWithTwoCriteria_yieldsOneFindingPerCriterionPerElement() {
+        String json = """
+                [{"id":"link-name","impact":"serious","description":"d",
+                  "tags":["cat.name-role-value","wcag2a","wcag244","wcag412"],
+                  "nodes":[{"target":["a.icon"]},{"target":["a.more"]}]}]""";
+
+        List<Finding> findings = new AxeResultParser(new ObjectMapper()).parse(json);
+
+        assertThat(findings).extracting(f -> f.getWcagCriterion() + " " + f.getElementSelector())
+                .containsExactly("2.4.4 a.icon", "4.1.2 a.icon", "2.4.4 a.more", "4.1.2 a.more");
+        assertThat(findings).allSatisfy(f -> {
+            assertThat(f.getRuleId()).isEqualTo("link-name");
+            assertThat(f.getWcagLevel()).isEqualTo("A");
+        });
+    }
 }
