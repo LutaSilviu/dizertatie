@@ -130,9 +130,10 @@ None of the class names they used (`p.light-text`, `a.nav-link`, `div.accordion`
    per element. A selector the model wrote that matches nothing in the page is kept as written and
    counts as a false positive. A broad selector (`#main a`) claims every element it matches, so
    over-general AI findings lower AI precision.
-2. **One criterion per axe finding.** `AxeResultParser` keeps only the first `wcagNNN` tag. For
-   example, axe's `link-name` is recorded as 2.4.4, so the 4.1.2 label on the same link can't be met
-   by axe.
+2. **One finding per criterion.** When an axe rule names two success criteria, `AxeResultParser`
+   records a finding for each. For example, axe's `link-name` yields a 2.4.4 and a 4.1.2 finding on
+   the same link. Where the dataset labels only one of the two, the other counts as a false
+   positive.
 3. **WCAG 2.2 findings outside the label scope.** `AxeService` also runs `wcag22aa`. axe's
    `target-size` (2.5.8) fires on W3C's wrapper links on every page, and on two list links in
    `after/home.html`. These count as false positives because the labels are WCAG 2.0-scoped.

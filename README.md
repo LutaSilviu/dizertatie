@@ -44,8 +44,10 @@ If port 80 is already in use (on Windows, IIS or another service often holds it)
 `PKIX path building failed` or `unable to verify the first certificate` during
 `docker compose up --build` means something on the machine is inspecting HTTPS traffic
 (an antivirus "web shield" or a corporate proxy) and the build containers do not trust its
-certificate. Pause HTTPS scanning for the duration of the build, or run the services outside
-Docker as described under [Development Setup](#development-setup).
+certificate. Export that root certificate as a PEM file into the `certs/` folder (see
+[certs/README.md](certs/README.md)) and rebuild: the images then trust it, with certificate
+checking still on. Alternatively pause HTTPS scanning, or run the services outside Docker as
+described under [Development Setup](#development-setup).
 
 ---
 
@@ -64,6 +66,7 @@ an OpenAI key. AI and COMBINED analysis require a valid `OPENAI_API_KEY`.
 | `OPENAI_API_KEY` | OpenAI API key required for AI and COMBINED analysis | `sk-...` |
 | `FRONTEND_PORT` | Optional. Host port for the frontend (default `80`) | `8088` |
 | `POSTGRES_PORT` | Optional. Host port for the database, bound to 127.0.0.1 (default `5432`) | `5433` |
+| `AI_PROMPT_VERSION` | Optional. System prompt used for AI analysis (default `v2`; `v1` is kept for comparison) | `v1` |
 
 The Settings page shows whether the configured OpenAI key is missing, rejected or working.
 While it is missing, AI and COMBINED scans are refused with an explanation and AXE keeps working.
@@ -147,6 +150,8 @@ Counting rules (details in [ADR 0001](docs/adr/0001-benchmark-counting-rules.md)
 - a finding matches a label when both have the same WCAG criterion and element selector;
 - AI findings are tied to real elements first: each selector the model writes is resolved in the page and replaced by axe-core's name for every element it matches, so AI, axe-core and the labels name an element identically (a selector matching nothing is kept as written);
 - several findings on the same criterion and element count once;
+- an axe rule that names two success criteria (for example `link-name`: 2.4.4 and 4.1.2) counts as a finding for each;
+- every run asks the AI model afresh; within a run, AI and COMBINED use the same reply for a page, and the COMBINED time includes the model's time;
 - a page whose scan did not complete for a method is left out of that method's counts rather than scored as all false negatives.
 
 Results can be exported as CSV for further analysis. The dataset and how its labels were derived are described in [DATASET.md](DATASET.md).

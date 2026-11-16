@@ -18,7 +18,10 @@ services:
       start_period: 5s
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      additional_contexts:
+        certs: ./certs
     env_file:
       - path: .env
         required: false
@@ -40,7 +43,10 @@ services:
       start_period: 60s
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      additional_contexts:
+        certs: ./certs
     depends_on:
       backend:
         condition: service_healthy

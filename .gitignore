@@ -5,3 +5,10 @@
 # Scratch / agent working files
 .scratch/
 .claude/
+
+# Machine-specific trusted root certificates for image builds (see certs/README.md)
+certs/*
+!certs/README.md
+
+# Local database dumps
+backups/

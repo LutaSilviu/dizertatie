@@ -26,6 +26,9 @@ Two behaviours made the reported numbers wrong:
 - Precision and recall from runs made before this change are not comparable with later runs when a page had duplicate keys or failed scans. Re-run benchmarks whose numbers are quoted.
 - Recall is now computed over the pages a method actually scanned. When methods fail on different pages, their recall figures cover different page sets; compare methods on runs where the error summary is empty.
 
-## Not decided here
+## Addendum (2026-11-16): multi-criterion axe rules, issue #41
 
-Issue #41: an axe rule that maps to two WCAG criteria (for example `link-name`: 2.4.4 and 4.1.2) keeps only the first criterion. Whether to emit one finding per criterion or store a list of criteria changes what counts as a match, and is left open. With rule 1 above, emitting one finding per criterion would no longer double-count a label, but the extra criterion would count as a false positive wherever the dataset labels only one of the two.
+5. **One finding per criterion.** An axe rule whose tags name two success criteria (`link-name`, `area-alt`: 2.4.4 and 4.1.2; `input-image-alt`: 1.1.1 and 4.1.2; `aria-hidden-body`: 1.3.1 and 4.1.2; `scrollable-region-focusable`: 2.1.1 and 2.1.3) produces one finding per criterion for each element. axe is then scored on everything it claims: a label on either criterion can be matched, and where the dataset labels only one of the two, the other counts as a false positive. The alternative, one finding carrying a list of criteria matched as "any of", was rejected because it would let one prediction satisfy labels it only partly states and needs a schema change.
+6. **Independent runs, shared reply within a run.** A benchmark run clears the AI reply cache when it starts, so repeated runs are independent samples of the model. Within a run AI and COMBINED use the same reply for a page, so COMBINED is exactly the axe findings plus that run's AI findings. The latency recorded for COMBINED includes the model time of the reused reply.
+
+axe results from before rule 5 are not comparable with later ones for criteria 2.4.4, 4.1.2, 1.1.1, 1.3.1 and 2.1.1.
