@@ -12,3 +12,6 @@ certs/*
 
 # Local database dumps
 backups/
+
+# Generated container build export
+/backend/.build-export/
