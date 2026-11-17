@@ -5,3 +5,9 @@
 # Scratch / agent working files
 .scratch/
 .claude/
+
+# Local IDE and generated workspace data
+.idea/
+Responsive Accessibility AI Evaluator/.idea/
+Responsive Accessibility AI Evaluator/target/
+.codex-tmp/
